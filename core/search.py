@@ -5,12 +5,12 @@ class SearchMoves:
     "A class with various class methods to search for possible moves from a given square."
 
     # -----------------------------------------------------------------------------------------------
-    
+
     rook_directions = {
-        -1 : File.H,
-        1 : File.A,
-        -8 : Rank.n8,
-        8 : Rank.n1
+        -1 : File.A,
+        1 : File.H,
+        -8 : Rank.n1,
+        8 : Rank.n8
     }
     """
     A `Mapping` of offsets to masks that instruct the search loop when to stop.
@@ -41,10 +41,10 @@ class SearchMoves:
     # -----------------------------------------------------------------------------------------------
 
     bishop_directions = {
-        -9 : File.H | Rank.n1,
-        7 : File.H | Rank.n8,
-        -7 : File.A | Rank.n1,
-        9 : File.A | Rank.n8
+        9 : File.H | Rank.n1,
+        -7 : File.H | Rank.n8,
+        7 : File.A | Rank.n1,
+        -9 : File.A | Rank.n8
     }
     """
     A `Mapping` of offsets to masks that instruct the search loop when to stop.
@@ -103,31 +103,10 @@ class SearchMoves:
         
         for offset, edge_mask in directions.items():
             C = 1 << square # start at the square
-            i = 0
+            i = 0 # counter to calculate offsets
 
-            if offset > 0: # positive offset, going down
-                while not C & edge_mask:
-                    if (C >> offset) & player_mask:
-                        break
-
-                    i += 1
-
-                    moves.append(
-                        Move(
-                            src = Square(square),
-                            dst = Square(square - i * offset)
-                        )
-                    )
-
-                    if (C >> offset) & opponent_mask: break
-                    
-                    C |= C >> offset
-            
-            else: # negative offset, going up
-                while not C & edge_mask:
-                    if (C << abs(offset)) & player_mask:
-                        break
-                    
+            if offset < 0: # negative offset, going left / up
+                while not (C << abs(offset)) & (edge_mask | player_mask):
                     i += 1
 
                     moves.append(
@@ -140,6 +119,21 @@ class SearchMoves:
                     if (C << abs(offset)) & opponent_mask: break
                     
                     C |= C << abs(offset)
+            
+            else: # position offset, going right / down
+                while not (C >> offset) & (edge_mask | player_mask):                    
+                    i += 1
+
+                    moves.append(
+                        Move(
+                            src = Square(square),
+                            dst = Square(square - i * offset)
+                        )
+                    )
+
+                    if (C >> offset) & opponent_mask: break
+                    
+                    C |= C >> offset
         
         return moves
     
