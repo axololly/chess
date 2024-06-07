@@ -20,10 +20,7 @@ class Pawn(Piece):
         super().__init__(color, position)
     
     def __str__(self):
-        if self.color:
-            return "♟︎"
-        else:
-            return "♙"
+            return "♟︎" if self.color else "♙"
 
     @Piece.possible_moves
     def move_(self):
@@ -35,10 +32,7 @@ class Rook(Piece):
         super().__init__(color, position)
 
     def __str__(self):
-        if self.color:
-            return "♜"
-        else:
-            return "♖"
+            return "♜" if self.color else "♖"
     
     @Piece.possible_moves
     def move_(self):
@@ -50,10 +44,7 @@ class Knight(Piece):
         super().__init__(color, position)
 
     def __str__(self):
-        if self.color:
-            return "♞"
-        else:
-            return "♘"
+            return "♞" if self.color else "♘"
     
     @Piece.possible_moves
     def move_(self):
@@ -65,10 +56,8 @@ class Bishop(Piece):
         super().__init__(color, position)
 
     def __str__(self):
-        if self.color:
-            return "♝"
-        else:
-            return "♗"
+            return "♝" if self.color else "♗"
+
     
     @Piece.possible_moves
     def move_(self):
@@ -80,10 +69,8 @@ class Queen(Piece):
         super().__init__(color, position)
 
     def __str__(self):
-        if self.color:
-            return "♛"
-        else:
-            return "♕"
+            return "♛" if self.color else "♕"
+
     
     @Piece.possible_moves
     def move_(self):
@@ -95,10 +82,8 @@ class King(Piece):
         super().__init__(color, position)
 
     def __str__(self):
-        if self.color:
-            return "♚"
-        else:
-            return "♔"
+        return "♚" if self.color else "♔"
+
     
     @Piece.possible_moves
     def move_(self):
