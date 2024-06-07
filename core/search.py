@@ -7,10 +7,10 @@ class SearchMoves:
     # -----------------------------------------------------------------------------------------------
     
     rook_directions = {
-        -1 : File.A,
-        1 : File.H,
-        -8 : Rank.n1,
-        8 : Rank.n8
+        -1 : File.H,
+        1 : File.A,
+        -8 : Rank.n8,
+        8 : Rank.n1
     }
     """
     A `Mapping` of offsets to masks that instruct the search loop when to stop.
