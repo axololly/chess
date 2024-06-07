@@ -1,170 +1,5 @@
-from enum import IntEnum
-from dataclasses import dataclass
 from typing import List, Mapping
-
-class Piece(IntEnum):
-    Empty = 0
-    Pawn = 1
-    King = 2
-    Bishop = 3
-    Knight = 4
-    Rook = 5
-    Queen = 6
-    
-class File(IntEnum):
-    """
-    Represents a file of the board in binary.
-
-    These appear flipped in code for two reasons:
-
-        1) For how the board representation is conducted.
-        
-        2) To make placing squares on the board easier.
-            (eg. `34` is `34` instead of secretly being `37`)
-
-    ### File.H
-    ```yaml
-    . . . . . . . 1
-    . . . . . . . 1
-    . . . . . . . 1
-    . . . . . . . 1
-    . . . . . . . 1
-    . . . . . . . 1
-    . . . . . . . 1
-    . . . . . . . 1
-    ```
-
-    ### File.C
-    ```yaml
-    . . 1 . . . . .
-    . . 1 . . . . .
-    . . 1 . . . . .
-    . . 1 . . . . .
-    . . 1 . . . . .
-    . . 1 . . . . .
-    . . 1 . . . . .
-    . . 1 . . . . .
-    ```
-    """
-    A = 0b00000001_00000001_00000001_00000001_00000001_00000001_00000001_00000001
-    B = 0b00000010_00000010_00000010_00000010_00000010_00000010_00000010_00000010
-    C = 0b00000100_00000100_00000100_00000100_00000100_00000100_00000100_00000100
-    D = 0b00001000_00001000_00001000_00001000_00001000_00001000_00001000_00001000
-    E = 0b00010000_00010000_00010000_00010000_00010000_00010000_00010000_00010000
-    F = 0b00100000_00100000_00100000_00100000_00100000_00100000_00100000_00100000
-    G = 0b01000000_01000000_01000000_01000000_01000000_01000000_01000000_01000000
-    H = 0b10000000_10000000_10000000_10000000_10000000_10000000_10000000_10000000
-
-class Rank(IntEnum):
-    """
-    Represents a rank of the board in binary.
-
-    ### Rank.n7 (7th rank)
-    ```yaml
-    . . . . . . . .
-    1 1 1 1 1 1 1 1
-    . . . . . . . .
-    . . . . . . . .
-    . . . . . . . .
-    . . . . . . . .
-    . . . . . . . .
-    . . . . . . . .
-
-    ### Rank.n3
-    ```yaml
-    . . . . . . . .
-    . . . . . . . .
-    . . . . . . . .
-    . . . . . . . .
-    . . . . . . . .
-    1 1 1 1 1 1 1 1
-    . . . . . . . .
-    . . . . . . . .
-    ```
-    """
-    
-    n8 = 0b11111111_00000000_00000000_00000000_00000000_00000000_00000000_00000000
-    n7 = 0b00000000_11111111_00000000_00000000_00000000_00000000_00000000_00000000
-    n6 = 0b00000000_00000000_11111111_00000000_00000000_00000000_00000000_00000000
-    n5 = 0b00000000_00000000_00000000_11111111_00000000_00000000_00000000_00000000
-    n4 = 0b00000000_00000000_00000000_00000000_11111111_00000000_00000000_00000000
-    n3 = 0b00000000_00000000_00000000_00000000_00000000_11111111_00000000_00000000
-    n2 = 0b00000000_00000000_00000000_00000000_00000000_00000000_11111111_00000000
-    n1 = 0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_11111111
-
-@dataclass
-class RegularBoard:
-    """
-    Used in testing purposes to display a number in binary as a bitboard.
-
-    Parameters:
-        - board: `int` - The number (interpreted as binary)
-                         for the bitboard to be created with.
-    """
-    
-    board: int
-
-    def __repr__(self) -> str:
-        board = []
-
-        for i in range(8):
-            line = ''
-
-            for j in range(8):
-                if self.board & (1 << 8 * i + j):
-                    line += '1 '
-                else:
-                    line += f'{8 * i + j} ' # '. '
-            
-            board += [line]
-
-        return '\n'.join(board)
-    
-@dataclass
-class Square:
-    index: int
-
-    def __repr__(self) -> str:
-        letters = 'abcdefgh'
-        
-        rank, file = divmod(self.index, 8)
-
-        return f"{letters[file]}{9 - rank}" # a8, b3, c6, etc
-
-@dataclass
-class Move:
-    """
-    Represents a move that can be made on the board.
-
-    Parameters:
-        - src: `Square` - the square that the move starts on.
-        - dst: `Square` - the square that the move ends on.
-        - promo: `Piece` - the piece to promote to. Defaults to `None`.
-    """
-    
-    src: Square
-    dst: Square
-    promo: Piece = None
-
-    def __str__(self) -> str:            
-        return repr(self.src) + repr(self.dst)
-    
-    def __repr__(self) -> str:
-        raise NotImplementedError("needs to include the piece on the starting square, but haven't found a way to do that yet.")
-    
-        pieces = {
-            Piece.Knight: 'N',
-            Piece.Queen: 'Q',
-            Piece.Rook: 'R',
-            Piece.Bishop: 'B'
-        }
-
-        move = str(self.src) + str(self.dst)
-
-        if P := self.promo:
-            move + f'={pieces[P]}'
-        
-        return move
+from basics import File, Rank, Square, Move, Piece, Binary, RegularBoard
 
 class SearchMoves:
     "A class with various class methods to search for possible moves from a given square."
@@ -174,8 +9,8 @@ class SearchMoves:
     rook_directions = {
         -1 : File.A,
         1 : File.H,
-        -8 : Rank.n8,
-        8 : Rank.n1
+        -8 : Rank.n1,
+        8 : Rank.n8
     }
     """
     A `Mapping` of offsets to masks that instruct the search loop when to stop.
@@ -216,11 +51,11 @@ class SearchMoves:
 
     This is done by checking if the search bit overlaps with the mask and if it does, stop the search there.
 
-    The offsets for the rook directions are demonstrated below:
+    The offsets for the bishop directions are demonstrated below:
     ```yaml
-     . -8 .
-     -1 X 1
-      . 8 .
+    -9  . -7
+     .  X  .
+     7  .  9
     ```
 
     And each mask is as follows:
@@ -243,18 +78,20 @@ class SearchMoves:
     def search_directions(
         cls,
         start: Square,
-        directions: Mapping[int, int]
+        directions: Mapping[int, int],
+        player_mask: Binary,
+        opponent_mask: Binary
     ) -> List[Move]:
         
         """
         Search a set of `directions` from a given `Square` on the board.
 
-        Masks show where to end the search as this uses a `while` loop to record
+        Edge masks show where to end the search as this uses a `while` loop to record
         squares until a bit overlaps with the mask.
 
         Parameters:
             - start: `Square` - the square to start searching from.
-            - directions: `Mapping[int, int]` - a dictionary to map offsets to masks.
+            - directions: `Mapping[int, int]` - a dictionary to map offsets to edge masks.
         
         Returns:
             - `List[Move]` - the list of moves from this current square.
@@ -264,33 +101,43 @@ class SearchMoves:
         
         moves = []
         
-        for offset, mask in directions.items():
-            C = 1 << square
+        for offset, edge_mask in directions.items():
+            C = 1 << square # start at the square
             i = 0
 
-            if offset > 0: # positive offset
-                while not C & mask:
+            if offset > 0: # positive offset, going down
+                while not C & edge_mask:
+                    if (C >> offset) & player_mask:
+                        break
+
                     i += 1
 
                     moves.append(
                         Move(
                             src = Square(square),
-                            dst = Square(square + i * offset)
+                            dst = Square(square - i * offset)
                         )
                     )
+
+                    if (C >> offset) & opponent_mask: break
                     
                     C |= C >> offset
             
-            else: # negative offset, reverse operation
-                while not C & mask:
+            else: # negative offset, going up
+                while not C & edge_mask:
+                    if (C << abs(offset)) & player_mask:
+                        break
+                    
                     i += 1
 
                     moves.append(
                         Move(
                             src = Square(square),
-                            dst = Square(square + i * offset)
+                            dst = Square(square - i * offset)
                         )
                     )
+
+                    if (C << abs(offset)) & opponent_mask: break
                     
                     C |= C << abs(offset)
         
@@ -396,6 +243,56 @@ class SearchMoves:
             )
 
         return moves
+    
+    @classmethod
+    def micro_search_directions(
+        cls,
+        start: Square,
+        offsets: List[int]
+    ) -> List[Move]:
+        
+        """
+        Search one move in an offset instead of until collision with a mask.
+
+        Intended for use with the king and knight.
+
+        Paramters:
+            - start: `Square` - the square to start searching around.
+            - offsets: `List[int]` - the offsets to use when searching.
+
+        Returns:
+            - `List[Move]` - a list of moves that can be made.
+        """
+        
+        square = start.index
+
+        moves = []
+
+        for offset in offsets:
+            move = 1 << square + offset # get a new square
+
+            # if the start square is on the A or B file
+            # and the next square is on the G or H file
+            # (meaning they moved across the board)
+            # discredit the move
+            if (1 << square) & (File.A | File.B) and move & (File.G | File.H):
+                continue
+            
+            # if the start square is on the G or H file
+            # and the next square is on the A or B file
+            # (meaning they moved across the board)
+            # discredit the move
+            if (1 << square) & (File.G | File.H) and move & (File.A | File.B):
+                continue
+
+            moves.append(
+                Move(
+                    src = Square(square),
+                    dst = Square(square + offset)
+                )
+            )
+        
+        return moves
 
     @classmethod
     def find_king_moves(cls, start: Square) -> List[Move]:
@@ -409,37 +306,51 @@ class SearchMoves:
             - `List[Move]` - the list of moves from that square.
         """
         
-        square = start.index
-
-        moves = []
-
-        # get the offsets from the bishop and rook because
-        # the king moves in every direction like the queen
-        # (one space only though) so no while loop needed
-        offsets = (cls.bishop_directions | cls.rook_directions).keys()
-
-        for offset in offsets:
-            move = 1 << square + offset # get a new square
-
-            # if the start square is on the A file
-            # and the next square is on the H file
-            # discredit the move
-            if (1 << square) & File.A and move & File.H:
-                continue
-            
-            # if the start square is on the H file
-            # and the next square is on the A file
-            # discredit the move
-            if (1 << square) & File.H and move & File.A:
-                continue
-
-            moves.append(
-                Move(
-                    src = Square(square),
-                    dst = Square(square + offset)
-                )
-            )
-        
-        return moves
+        return cls.micro_search_directions(
+            start = start,
+            offsets = [
+                -7, -8,  9
+                -1,      1,
+                 7,  8,  9
+            ]
+        )
     
-    . # needs to implement knight moves
+    @classmethod
+    def find_knight_moves(cls, start: Square) -> List[Move]:
+        """
+        Find moves that a knight could go to, if on a given square.
+
+        Parameters:
+            - start: `Square` - the square to start searching moves from.
+        
+        Returns:
+            - `List[Move]` - the list of moves from that square.
+        
+
+        ### Offsets
+
+        ```yaml
+          . -17 -16 -15   .  
+        -10   .  -8   .  -6
+         -2  -1   X   1   2  
+          6   .   8   .  10
+          .  15  16  17   .
+        
+          . -17   . -15   .  
+        -10   .   .   .  -6
+          .   .   X   .   .  
+          6   .   .   .  10
+          .  15   .  17   .
+        ```
+        """
+
+        return cls.micro_search_directions(
+            start = start,
+            offsets = [
+                -17, -15, -10, -6, # knight moves upwards
+                 17,  15,  10,  6  # knight moves downwards
+            ]
+        )
+
+if __name__ == '__main__':
+    import test2
