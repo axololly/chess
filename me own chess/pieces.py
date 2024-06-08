@@ -1,18 +1,10 @@
 class Piece:
     def __init__(self, color, position):
-        self.color = color # -> 0 = white and 1 = black
+        self.color = color  # 0 = white and 1 = black
         self.position = position
 
     def move(self, new_position):
         self.position = new_position
-
-    @staticmethod
-    def possible_moves(func):
-        def wrapper(*args, **kwargs):
-            moves = func(*args, **kwargs)
-            valid_moves = [(x, y) for x, y in moves if 0 <= x < 8 and 0 <= y < 8]
-            return valid_moves
-        return wrapper
 
 
 class Pawn(Piece):
@@ -20,62 +12,107 @@ class Pawn(Piece):
         super().__init__(color, position)
     
     def __str__(self):
-            return "♟︎" if self.color else "♙"
-
-    @Piece.possible_moves
-    def move_(self):
+        return "♟︎" if self.color else "♙"
+    
+    def possible_moves(self, board):
         x, y = self.position
-        return [(x, y + 1)] if self.color == 0 else [(x, y - 1)]
+        moves = []
+        
+        for dx, dy in [(1, 0)] if self.color == 0 else [(-1, 0)]:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < 8 and 0 <= ny < 8 and board[nx][ny] in [".", "1"]:
+                moves.append((nx, ny))
+        
+        return moves
+
 
 class Rook(Piece):
     def __init__(self, color, position):
         super().__init__(color, position)
 
     def __str__(self):
-            return "♜" if self.color else "♖"
+        return "♜" if self.color else "♖"
     
-    @Piece.possible_moves
-    def move_(self):
+    def possible_moves(self, board):
         x, y = self.position
-        return [(x, y + i) for i in range(1, 8)] + [(x, y - i) for i in range(1, 8)] + [(x + i, y) for i in range(1, 8)] + [(x - i, y) for i in range(1, 8)]
+        moves = []
+        
+        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            nx, ny = x + dx, y + dy
+            while 0 <= nx < 8 and 0 <= ny < 8:
+                if board[nx][ny] not in [".", "1"]:
+                    break
+                moves.append((nx, ny))
+                nx += dx
+                ny += dy
+        
+        return moves
+
 
 class Knight(Piece):
     def __init__(self, color, position):
         super().__init__(color, position)
 
     def __str__(self):
-            return "♞" if self.color else "♘"
+        return "♞" if self.color else "♘"
     
-    @Piece.possible_moves
-    def move_(self):
+    def possible_moves(self, board):
         x, y = self.position
-        return [(x + 2, y + 1), (x + 2, y - 1), (x - 2, y + 1), (x - 2, y - 1), (x + 1, y + 2), (x - 1, y + 2), (x + 1, y - 2), (x - 1, y - 2)]
+        moves = []
+        
+        for dx, dy in [(-1, 2), (-1, -2), (1, 2), (1, -2), (-2, 1), (2, 1), (-2, -1), (2, -1)]:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < 8 and 0 <= ny < 8 and board[nx][ny] in [".", "1"]:
+                moves.append((nx, ny))
+        
+        return moves
+
 
 class Bishop(Piece):
     def __init__(self, color, position):
         super().__init__(color, position)
 
     def __str__(self):
-            return "♝" if self.color else "♗"
+        return "♝" if self.color else "♗"
 
-    
-    @Piece.possible_moves
-    def move_(self):
+    def possible_moves(self, board):
         x, y = self.position
-        return [(x + i, y + i) for i in range(1, 8)] + [(x + i, y - i) for i in range(1, 8)] + [(x - i, y + i) for i in range(1, 8)] + [(x - i, y - i) for i in range(1, 8)]
+        moves = []
+        
+        for dx, dy in [(1, 1), (-1, -1), (1, -1), (-1, 1)]:
+            nx, ny = x + dx, y + dy
+            while 0 <= nx < 8 and 0 <= ny < 8:
+                if board[nx][ny] not in [".", "1"]:
+                    break
+                moves.append((nx, ny))
+                nx += dx
+                ny += dy
+        
+        return moves
+
 
 class Queen(Piece):
     def __init__(self, color, position):
         super().__init__(color, position)
 
     def __str__(self):
-            return "♛" if self.color else "♕"
-
+        return "♛" if self.color else "♕"
     
-    @Piece.possible_moves
-    def move_(self):
+    def possible_moves(self, board):
         x, y = self.position
-        return [(x, y + i) for i in range(1, 8)] + [(x, y - i) for i in range(1, 8)] + [(x + i, y) for i in range(1, 8)] + [(x - i, y) for i in range(1, 8)] + [(x + i, y + i) for i in range(1, 8)] + [(x + i, y - i) for i in range(1, 8)] + [(x - i, y + i) for i in range(1, 8)] + [(x - i, y - i) for i in range(1, 8)]
+        moves = []
+        
+        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)]:
+            nx, ny = x + dx, y + dy
+            while 0 <= nx < 8 and 0 <= ny < 8:
+                if board[nx][ny] not in [".", "1"]:
+                    break
+                moves.append((nx, ny))
+                nx += dx
+                ny += dy
+        
+        return moves
+
 
 class King(Piece):
     def __init__(self, color, position):
@@ -83,14 +120,24 @@ class King(Piece):
 
     def __str__(self):
         return "♚" if self.color else "♔"
-
     
-    @Piece.possible_moves
-    def move_(self):
+    def possible_moves(self, board):
         x, y = self.position
-        return [(x, y + 1), (x, y - 1), (x + 1, y), (x - 1, y), (x + 1, y + 1), (x + 1, y - 1), (x - 1, y + 1), (x - 1, y - 1)]
+        moves = []
+        
+        for dx, dy in [(x - 1, y), (x + 1, y), (x, y + 1), (x, y - 1), (x - 1, y + 1), (x - 1, y - 1), (x + 1, y + 1), (x + 1, y - 1)]:
+            nx, ny = x + dx, y + dy
+            while 0 <= nx < 8 and 0 <= ny < 8:
+                if board[nx][ny] not in [".", "1"]:
+                    break
+                moves.append((nx, ny))
+                nx += dx
+                ny += dy
+        
+        return moves
+
 
 
 if __name__ == "__main__":
-    pawn = Pawn(0, (1, 7))
-    print(pawn.move_())
+    pawn = Pawn(0, (6, 0))
+    print(pawn.possible_moves())
