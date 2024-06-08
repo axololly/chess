@@ -10,6 +10,7 @@ class Piece:
 class Pawn(Piece):
     def __init__(self, color, position):
         super().__init__(color, position)
+        self.first_move = True
     
     def __str__(self):
         return "♟︎" if self.color else "♙"
@@ -18,11 +19,12 @@ class Pawn(Piece):
         x, y = self.position
         moves = []
         
-        for dx, dy in [(1, 0)] if self.color == 0 else [(-1, 0)]:
+        for dx, dy in ([(1, 0)] if not self.first_move else [(1, 0), (2, 0)]) if self.color == 0 else ([(-1, 0)] if not self.first_move else [(-2, 0), (-1, 0)]):
             nx, ny = x + dx, y + dy
             if 0 <= nx < 8 and 0 <= ny < 8 and board[nx][ny] in [".", "1"]:
                 moves.append((nx, ny))
-        
+        self.first_move = False
+        print(*moves)
         return moves
 
 

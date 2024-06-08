@@ -1,9 +1,12 @@
 class Board:
     def __init__(self):
+        self.clear_board()
+
+    def clear_board(self):
         self.board = [["." for _ in range(8)] for _ in range(8)]
 
-
     def set_pieces(self, pieces):
+        self.clear_board()
         for piece in pieces:
             self.board[piece.position[0]][piece.position[1]] = str(piece)
 
