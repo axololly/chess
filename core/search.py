@@ -104,12 +104,12 @@ class SearchMoves:
         moves = []
         
         for offset, edge_mask in directions.items():
-            current = 1 << square
+            pointer = 1 << square
             i = 0
             
             if offset > 0:
-                while not current & (edge_mask | player_mask):
-                    current = current << offset
+                while not pointer & (edge_mask | player_mask):
+                    pointer = pointer << offset
                     i += 1
 
                     moves.append(
@@ -119,12 +119,12 @@ class SearchMoves:
                         )
                     )
 
-                    if current & opponent_mask:
+                    if pointer & opponent_mask:
                         break
 
             else:
-                while not current & (edge_mask | player_mask):
-                    current = current >> abs(offset)
+                while not pointer & (edge_mask | player_mask):
+                    pointer = pointer >> abs(offset)
                     i += 1
 
                     moves.append(
@@ -134,7 +134,7 @@ class SearchMoves:
                         )
                     )
 
-                    if current & opponent_mask:
+                    if pointer & opponent_mask:
                         break
 
         return moves
