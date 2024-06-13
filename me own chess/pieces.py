@@ -1,6 +1,9 @@
+from constants import WHITE, BLACK
+
+
 class Piece:
     def __init__(self, color, position):
-        self.color = color  # 0 = white and 1 = black
+        self.color = color  # 1 = white and 0 = black
         self.position = position
 
     def move(self, new_position):
@@ -15,16 +18,28 @@ class Pawn(Piece):
     def __str__(self):
         return "♟︎" if self.color else "♙"
     
+    def __repr__(self):
+        return "♟︎" if self.color else "♙"
+    
     def possible_moves(self, board):
         x, y = self.position
         moves = []
         
-        for dx, dy in ([(1, 0)] if not self.first_move else [(1, 0), (2, 0)]) if self.color == 0 else ([(-1, 0)] if not self.first_move else [(-2, 0), (-1, 0)]):
+        direction = 1 if self.color == WHITE else -1
+        
+        # Normal move
+        if board[y + direction][x] is None:
+            moves.append((x, y + direction))
+            # First move double step
+            if self.first_move and board[y + 2 * direction][x] is None:
+                moves.append((x, y + 2 * direction))
+        
+        # Captures
+        for dx, dy in [(1, direction), (-1, direction)]:
             nx, ny = x + dx, y + dy
-            if 0 <= nx < 8 and 0 <= ny < 8 and board[nx][ny] in [".", "1"]:
+            if 0 <= nx < 8 and 0 <= ny < 8 and isinstance(board[ny][nx], Piece) and board[ny][nx].color != self.color:
                 moves.append((nx, ny))
-        self.first_move = False
-        print(*moves)
+        
         return moves
 
 
@@ -35,6 +50,9 @@ class Rook(Piece):
     def __str__(self):
         return "♜" if self.color else "♖"
     
+    def __repr__(self):
+        return "♜" if self.color else "♖"
+    
     def possible_moves(self, board):
         x, y = self.position
         moves = []
@@ -42,7 +60,9 @@ class Rook(Piece):
         for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
             nx, ny = x + dx, y + dy
             while 0 <= nx < 8 and 0 <= ny < 8:
-                if board[nx][ny] not in [".", "1"]:
+                if board[ny][nx] is not None:
+                    if isinstance(board[ny][nx], Piece) and board[ny][nx].color != self.color:
+                        moves.append((nx, ny))
                     break
                 moves.append((nx, ny))
                 nx += dx
@@ -58,13 +78,16 @@ class Knight(Piece):
     def __str__(self):
         return "♞" if self.color else "♘"
     
+    def __repr__(self):
+        return "♞" if self.color else "♘"
+    
     def possible_moves(self, board):
         x, y = self.position
         moves = []
         
-        for dx, dy in [(-1, 2), (-1, -2), (1, 2), (1, -2), (-2, 1), (2, 1), (-2, -1), (2, -1)]:
+        for dx, dy in [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)]:
             nx, ny = x + dx, y + dy
-            if 0 <= nx < 8 and 0 <= ny < 8 and board[nx][ny] in [".", "1"]:
+            if 0 <= nx < 8 and 0 <= ny < 8 and (board[ny][nx] is None or (isinstance(board[ny][nx], Piece) and board[ny][nx].color != self.color)):
                 moves.append((nx, ny))
         
         return moves
@@ -77,6 +100,9 @@ class Bishop(Piece):
     def __str__(self):
         return "♝" if self.color else "♗"
 
+    def __repr__(self):
+        return "♝" if self.color else "♗"
+    
     def possible_moves(self, board):
         x, y = self.position
         moves = []
@@ -84,7 +110,9 @@ class Bishop(Piece):
         for dx, dy in [(1, 1), (-1, -1), (1, -1), (-1, 1)]:
             nx, ny = x + dx, y + dy
             while 0 <= nx < 8 and 0 <= ny < 8:
-                if board[nx][ny] not in [".", "1"]:
+                if board[ny][nx] is not None:
+                    if isinstance(board[ny][nx], Piece) and board[ny][nx].color != self.color:
+                        moves.append((nx, ny))
                     break
                 moves.append((nx, ny))
                 nx += dx
@@ -100,6 +128,9 @@ class Queen(Piece):
     def __str__(self):
         return "♛" if self.color else "♕"
     
+    def __repr__(self):
+        return "♛" if self.color else "♕"
+    
     def possible_moves(self, board):
         x, y = self.position
         moves = []
@@ -107,7 +138,9 @@ class Queen(Piece):
         for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)]:
             nx, ny = x + dx, y + dy
             while 0 <= nx < 8 and 0 <= ny < 8:
-                if board[nx][ny] not in [".", "1"]:
+                if board[ny][nx] is not None:
+                    if isinstance(board[ny][nx], Piece) and board[ny][nx].color != self.color:
+                        moves.append((nx, ny))
                     break
                 moves.append((nx, ny))
                 nx += dx
@@ -123,23 +156,16 @@ class King(Piece):
     def __str__(self):
         return "♚" if self.color else "♔"
     
+    def __repr__(self):
+        return "♚" if self.color else "♔"
+    
     def possible_moves(self, board):
         x, y = self.position
         moves = []
         
-        for dx, dy in [(x - 1, y), (x + 1, y), (x, y + 1), (x, y - 1), (x - 1, y + 1), (x - 1, y - 1), (x + 1, y + 1), (x + 1, y - 1)]:
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)]:
             nx, ny = x + dx, y + dy
-            while 0 <= nx < 8 and 0 <= ny < 8:
-                if board[nx][ny] not in [".", "1"]:
-                    break
+            if 0 <= nx < 8 and 0 <= ny < 8 and (board[ny][nx] is None or (isinstance(board[ny][nx], Piece) and board[ny][nx].color != self.color)):
                 moves.append((nx, ny))
-                nx += dx
-                ny += dy
         
         return moves
-
-
-
-if __name__ == "__main__":
-    pawn = Pawn(0, (6, 0))
-    print(pawn.possible_moves())
