@@ -108,7 +108,7 @@ class RegularBoard:
         board = ''
         
         for n in range(64):
-            board += '1 ' if (1 << n) & self.board else '. '
+            board += '1  ' if (1 << n) & self.board else f'{n}  ' # '. '
             board += '\n' if not (n + 1) % 8 else ''
 
         return board

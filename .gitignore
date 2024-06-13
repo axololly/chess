@@ -1,1 +1,6 @@
-me own chess/__pycache__/
+core/__pycache__/
+__pycache__/
+core/answer.md
+.gitignore
+core/test*.py
+core/workout.yaml

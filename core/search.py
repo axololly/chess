@@ -11,8 +11,8 @@ class SearchMoves:
     rook_directions = {
         -1 : File.A,
         1 : File.H,
-        -8 : Rank.n1,
-        8 : Rank.n8
+        8 : Rank.n1,
+        -8 : Rank.n8
     }
     """
     A `Mapping` of offsets to masks that instruct the search loop when to stop.
@@ -21,9 +21,9 @@ class SearchMoves:
 
     The offsets for the rook directions are demonstrated below:
     ```yaml
-     . -8 .
+     .  8 .
      -1 X 1
-      . 8 .
+     . -8 .
     ```
 
     And each mask is as follows:
@@ -104,58 +104,39 @@ class SearchMoves:
         moves = []
         
         for offset, edge_mask in directions.items():
-            C = 1 << square # start at the square
-            i = 0 # counter to calculate offsets
-            old_C = C
-
-            if offset < 0: # negative offset, going up
-                # print(RegularBoard(edge_mask | player_mask))
-                # print()
-                
-                while not (C | (C << abs(offset))) & (edge_mask | player_mask):
-                    print(RegularBoard(C))
-                    print(bool((C | (C << abs(offset))) & edge_mask))
-                    print()
-
-                    i += 1
-
-                    moves.append(
-                        Move(
-                            src = Square(square),
-                            dst = Square(square - i * offset)
-                        )
-                    )
-
-                    if (C << abs(offset)) & opponent_mask: break
-                    
-                    old_C = C
-                    C |= C << abs(offset)
-
-                    if C == old_C:
-                        break
+            current = 1 << square
+            i = 0
             
-            else: # positive offset, going down
-                # print(RegularBoard(edge_mask | player_mask))
-                # print()
-
-                while not (C | (C >> offset)) & (edge_mask | player_mask):
+            if offset > 0:
+                while not current & (edge_mask | player_mask):
+                    current = current << offset
                     i += 1
 
                     moves.append(
                         Move(
                             src = Square(square),
-                            dst = Square(square - i * offset)
+                            dst = Square(square + i * offset)
                         )
                     )
 
-                    if (C >> offset) & opponent_mask: break
-                    
-                    old_C = C
-                    C |= C >> offset
-
-                    if C == old_C:
+                    if current & opponent_mask:
                         break
-        
+
+            else:
+                while not current & (edge_mask | player_mask):
+                    current = current >> abs(offset)
+                    i += 1
+
+                    moves.append(
+                        Move(
+                            src = Square(square),
+                            dst = Square(square + i * offset)
+                        )
+                    )
+
+                    if current & opponent_mask:
+                        break
+
         return moves
     
     @classmethod
@@ -258,6 +239,17 @@ class SearchMoves:
                     dst = Square(square - 8) # allow movement to square in front
                 )
             )
+
+            total = White.mask() | Black.mask()
+
+            for check in [9, 7]:
+                if (1 << (square - check)) & total:
+                    moves.append(
+                        Move(
+                            src = Square(square),
+                            dst = Square(square - check)
+                        )
+                    )
 
         return moves
     
@@ -369,7 +361,8 @@ class SearchMoves:
             ]
         )
     
-    def search_indexes(self, board: Binary) -> List[int]:
+    @classmethod
+    def search_indexes(cls, board: Binary) -> List[int]:
         """
         Search for indexes of 1s in the binary on a given board that represent the positions of the pieces.
 
@@ -389,16 +382,7 @@ class SearchMoves:
         bin_n = bin(board).removeprefix('0b') # binary number
         n = '0' * (64 - len(bin_n)) + bin_n # padded binary number
         
-        indexes = [] # list for indexes
-        i = 0 # counter
-
-        while (i := n.find('1')) != -1: # search until there are no more 1s
-            # add the position to the list
-            # add 1 to the position to account for padding
-            indexes += [i + 1 if not indexes else i + 1 + sum(indexes)] # cumulative frequency to account for shifting
-            n = n[i+1:] # shorten the number to get new indexes
-
-        return [*map(lambda n: 64 - n, indexes)] # return them as square indexes
+        return [i for i, d in enumerate(n) if d == '1']
     
 if __name__ == '__main__':
     import test2
