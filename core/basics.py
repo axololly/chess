@@ -1,8 +1,6 @@
 from enum import IntEnum
 from dataclasses import dataclass
-from typing import NewType
-
-Binary = NewType('Binary', int)
+from typehints import Binary
 
 class Piece(IntEnum):
     Empty = 0
@@ -107,20 +105,13 @@ class RegularBoard:
     board: Binary
 
     def __repr__(self) -> str:
-        board = []
+        board = ''
+        
+        for n in range(64):
+            board += '1 ' if (1 << n) & self.board else '. '
+            board += '\n' if not (n + 1) % 8 else ''
 
-        for i in range(8):
-            line = ''
-
-            for j in range(8):
-                if self.board & (1 << 8 * i + j):
-                    line += '1 '
-                else:
-                    line += '. '
-            
-            board += [line]
-
-        return '\n'.join(board)
+        return board
     
 @dataclass
 class Square:
@@ -131,7 +122,7 @@ class Square:
         
         rank, file = divmod(self.index, 8)
 
-        return f"{letters[file]}{9 - rank}" # a8, b3, c6, etc
+        return f"{letters[file]}{8 - rank}" # a8, b3, c6, etc
 
 @dataclass
 class Move:

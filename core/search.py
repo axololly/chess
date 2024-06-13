@@ -1,5 +1,7 @@
 from typing import List, Mapping
-from basics import File, Rank, Square, Move, Piece, Binary, RegularBoard
+from basics import File, Rank, Square, Move, Piece, RegularBoard
+from board import White, Black
+from typehints import Binary
 
 class SearchMoves:
     "A class with various class methods to search for possible moves from a given square."
@@ -79,8 +81,8 @@ class SearchMoves:
         cls,
         start: Square,
         directions: Mapping[int, int],
-        player_mask: Binary,
-        opponent_mask: Binary
+        player_mask: Binary = White.mask(),
+        opponent_mask: Binary = Black.mask()
     ) -> List[Move]:
         
         """
@@ -104,9 +106,17 @@ class SearchMoves:
         for offset, edge_mask in directions.items():
             C = 1 << square # start at the square
             i = 0 # counter to calculate offsets
+            old_C = C
 
-            if offset < 0: # negative offset, going left / up
-                while not (C << abs(offset)) & (edge_mask | player_mask):
+            if offset < 0: # negative offset, going up
+                # print(RegularBoard(edge_mask | player_mask))
+                # print()
+                
+                while not (C | (C << abs(offset))) & (edge_mask | player_mask):
+                    print(RegularBoard(C))
+                    print(bool((C | (C << abs(offset))) & edge_mask))
+                    print()
+
                     i += 1
 
                     moves.append(
@@ -118,10 +128,17 @@ class SearchMoves:
 
                     if (C << abs(offset)) & opponent_mask: break
                     
+                    old_C = C
                     C |= C << abs(offset)
+
+                    if C == old_C:
+                        break
             
-            else: # position offset, going right / down
-                while not (C >> offset) & (edge_mask | player_mask):                    
+            else: # positive offset, going down
+                # print(RegularBoard(edge_mask | player_mask))
+                # print()
+
+                while not (C | (C >> offset)) & (edge_mask | player_mask):
                     i += 1
 
                     moves.append(
@@ -133,7 +150,11 @@ class SearchMoves:
 
                     if (C >> offset) & opponent_mask: break
                     
+                    old_C = C
                     C |= C >> offset
+
+                    if C == old_C:
+                        break
         
         return moves
     
@@ -151,7 +172,9 @@ class SearchMoves:
 
         return cls.search_directions(
             start = start,
-            directions = cls.bishop_directions
+            directions = cls.bishop_directions,
+            player_mask = White.mask(),
+            opponent_mask = Black.mask()
         )
 
     @classmethod
@@ -345,6 +368,37 @@ class SearchMoves:
                  17,  15,  10,  6  # knight moves downwards
             ]
         )
+    
+    def search_indexes(self, board: Binary) -> List[int]:
+        """
+        Search for indexes of 1s in the binary on a given board that represent the positions of the pieces.
 
+        Parameters:
+            - board: `Binary` - the board to index 1s from.
+        
+        Returns:
+            - `List[int]` - the indexes of the board that contain 1s (pieces).
+        """
+
+        if not isinstance(board, int): # if the board is not a number
+            raise TypeError('board argument must be an integer - this integer will be handled in a binary form, hence the typehint.')
+
+        if board == 0: # save time if an empty board is given
+            return []
+        
+        bin_n = bin(board).removeprefix('0b') # binary number
+        n = '0' * (64 - len(bin_n)) + bin_n # padded binary number
+        
+        indexes = [] # list for indexes
+        i = 0 # counter
+
+        while (i := n.find('1')) != -1: # search until there are no more 1s
+            # add the position to the list
+            # add 1 to the position to account for padding
+            indexes += [i + 1 if not indexes else i + 1 + sum(indexes)] # cumulative frequency to account for shifting
+            n = n[i+1:] # shorten the number to get new indexes
+
+        return [*map(lambda n: 64 - n, indexes)] # return them as square indexes
+    
 if __name__ == '__main__':
     import test2
