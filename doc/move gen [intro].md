@@ -25,4 +25,6 @@ Well, consider all the six different types of pieces in the game of Chess:
 - queens
 - kings
 
-We can categorise them into two types: static and sliding. Static pieces have fixed reach limits that will always remain the same, no matter the position. Pawns cannot move backwards, kings cannot move off of the board - you get the idea. However, sliding pieces can move in any number of squares along the board, and but their moves are halted if "blockers" are in the way. In short, static pieces have moves that are _not_ determined by the state of the board, whereas sliding pieces have moves that _are_ affected by the current state of the board.
+We can categorise them into two types: static and sliding.
+
+These are explained in `doc/move gen [static pieces]` and `doc/move gen [sliding pieces]` respectively. The docs on static pieces should be read first before sliding pieces.

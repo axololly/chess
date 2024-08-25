@@ -1,6 +1,7 @@
 using System.Numerics;
+using Utilities;
 
-namespace MagicBitboards
+namespace MoveGeneration
 {
     public record MagicEntry
     {
@@ -165,14 +166,12 @@ namespace MagicBitboards
                 MagicEntry entry = ROOK_MAGICS[square];
 
                 ulong combo = 0;
-                // int iter = 0;
 
                 do
                 {
                     SLIDING_PIECE_MOVE_TABLE[entry.offset + (int)((combo * entry.magic) >> entry.shift)] = 
                     TraceOutRookMoves(combo, square);
                     combo = (combo - entry.mask) & entry.mask;
-                    // iter++;
                 } while (combo != 0);
             }
 
@@ -338,11 +337,85 @@ namespace MagicBitboards
         }
     }
 
-    public class SlidingPieceMoves
+    public class FixedMovementTables
+    {
+        public ulong[] KING_MOVES_TABLE = new ulong[64];
+        public ulong[] KNIGHT_MOVES_TABLE = new ulong[64];
+
+        public FixedMovementTables()
+        {
+            // King moves
+            for (int square = 0; square < 64; square++)
+            {
+                ulong sq = 1UL << square;
+                ulong moves = 0;
+
+                int[] directions = [7, 8, 9, 1];
+
+                foreach (int direction in directions) 
+                {
+                    moves |= sq << direction;
+                    moves |= sq >> direction;
+                }
+
+                // If on the left edge, ignore moves that appear on the right edge
+                if ((sq & BoardFile.A) != 0) moves &= ~BoardFile.H;
+                
+                // If on the right edge, ignore moves that appear on the left edge
+                if ((sq & BoardFile.H) != 0) moves &= ~BoardFile.A;
+
+                KING_MOVES_TABLE[square] = moves;
+            }
+
+            // Knight moves
+            for (int square = 0; square < 64; square++)
+            {
+                ulong sq = 1UL << square;
+                ulong moves = 0;
+                int[] directions = [17, 15, 10, 6];
+
+                foreach (int direction in directions)
+                {
+                    moves |= sq << direction;
+                    moves |= sq >> direction;
+                }
+
+                // If on the left side, ignore any that go onto the right
+                if ((sq & BoardFile.AB) != 0) moves &= ~BoardFile.GH;
+                
+                // If on the right side, ignore any that go onto the left
+                if ((sq & BoardFile.GH) != 0) moves &= ~BoardFile.AB;
+
+                KNIGHT_MOVES_TABLE[square] = moves;
+            }
+        }
+    }
+
+    public struct Move
+    {
+        public int src; // Where the move starts
+        public int dst; // Where the move ends
+
+        public override string ToString()
+        {
+            static string convert(int index)
+            {
+                int file = index % 8;
+                int rank = index / 8;
+
+                return "abcdefgh"[file].ToString() + "12345678"[rank].ToString();
+            }
+
+            return convert(src) + convert(dst);
+        }
+    }
+
+    public static class Moves
     {
         private readonly static MagicBitboards mb = new();
+        private readonly static FixedMovementTables fmt = new();
 
-        public static ulong GetBishopMoves(ulong occupancy, int square)
+        public static ulong GetBishopMoveBitmask(ulong occupancy, int square)
         {
             ulong occ;
 
@@ -357,7 +430,7 @@ namespace MagicBitboards
             return mb.SLIDING_PIECE_MOVE_TABLE[index];
         }
 
-        public static ulong GetRookMoves(ulong occupancy, int square)
+        public static ulong GetRookMoveBitmask(ulong occupancy, int square)
         {
             ulong occ;
 
@@ -371,19 +444,152 @@ namespace MagicBitboards
 
             return mb.SLIDING_PIECE_MOVE_TABLE[index];
         }
-    }
 
-    public class StaticPieceMoves
-    {
-        public ulong[] KING_MOVES_TABLE;
-        public ulong[] KNIGHTS_MOVES_TABLE;
 
-        public StaticPieceMoves()
+        public static List<Move> GenerateMovesFromSameSquare(ulong moveBitmask, int startSquare)
         {
-            for (int square = 0; square < 64; square++)
+            List<Move> moves = [];
+
+            while (moveBitmask != 0)
             {
-                // ...
+                int LSB_index = BitOperations.TrailingZeroCount(moveBitmask);
+
+                Move move;
+                move.src = startSquare;
+                move.dst = LSB_index;
+
+                moves.Add(move);
+
+                moveBitmask ^= 1UL << LSB_index;
             }
+
+            return moves;
+        }
+
+        public static List<Move> GenerateMovesWithOffset(ulong moveBitmask, int offset)
+        {
+            List<Move> moves = [];
+
+            while (moveBitmask != 0)
+            {
+                int LSB_index = BitOperations.TrailingZeroCount(moveBitmask);
+
+                Move move;
+                move.src = LSB_index - offset;
+                move.dst = LSB_index;
+
+                moves.Add(move);
+
+                moveBitmask ^= 1UL << LSB_index;
+            }
+
+            return moves;
+        }
+
+
+        public static List<Move> GenerateRookMoves(ulong occupancy, int square)
+        {
+            ulong moveBitmask = GetRookMoveBitmask(occupancy, square);
+            
+            return GenerateMovesFromSameSquare(moveBitmask, square);
+        }
+
+        public static List<Move> GenerateBishopMoves(ulong occupancy, int square)
+        {
+            ulong moveBitmask = GetBishopMoveBitmask(occupancy, square);
+            
+            return GenerateMovesFromSameSquare(moveBitmask, square);
+        }
+        
+        public static ulong GetKingMoveBitmask(ulong occupancy, int square)
+        {
+            return ~occupancy & fmt.KING_MOVES_TABLE[square];
+        }
+
+        public static List<Move> GenerateKingMoves(ulong occupancy, int square)
+        {
+            ulong moveBitmask = GetKingMoveBitmask(occupancy, square);
+
+            return GenerateMovesFromSameSquare(moveBitmask, square);
+        }
+
+        public static ulong GetKnightMoveBitmask(ulong occupancy, int square)
+        {
+            return ~occupancy & fmt.KNIGHT_MOVES_TABLE[square];
+        }
+
+        public static List<Move> GenerateKnightMoves(ulong occupancy, int square)
+        {
+            ulong moveBitmask = GetKnightMoveBitmask(occupancy, square);
+
+            return GenerateMovesFromSameSquare(moveBitmask, square);
+        }
+
+        
+        public struct PawnMoves
+        {
+            public ulong LeftAttacks;
+            public ulong RightAttacks;
+            public ulong SinglePushForward;
+            public ulong DoublePushForward;
+        }
+
+        
+        public static PawnMoves GetWhitePawnMoves(ulong occupancy, ulong pawnBitboard)
+        {
+            PawnMoves moves;
+
+            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboard) << 7;
+            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboard) << 9;
+
+            moves.SinglePushForward = ~occupancy & (pawnBitboard << 8);
+            moves.DoublePushForward = (moves.SinglePushForward & BoardRank.Third) << 8;
+
+            return moves;
+        }
+
+        public static PawnMoves GetBlackPawnMoves(ulong occupancy, ulong pawnBitboard)
+        {
+            PawnMoves moves;
+
+            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboard) >> 7;
+            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboard) >> 9;
+
+            moves.SinglePushForward = ~occupancy & (pawnBitboard >> 8);
+            moves.DoublePushForward = (moves.SinglePushForward & BoardRank.Sixth) >> 8;
+
+            return moves;
+        }
+
+
+        public static List<Move> GenerateWhitePawnMoves(ulong occupancy, ulong pawnBitboard)
+        {
+            PawnMoves pawnMoves = GetWhitePawnMoves(occupancy, pawnBitboard);
+
+            List<Move> left_attacks = GenerateMovesWithOffset(pawnMoves.LeftAttacks, 7);
+            List<Move> right_attacks = GenerateMovesWithOffset(pawnMoves.RightAttacks, 9);
+
+            List<Move> single_pushes = GenerateMovesWithOffset(pawnMoves.SinglePushForward, 8);
+            List<Move> double_pushes = GenerateMovesWithOffset(pawnMoves.DoublePushForward, 16);
+
+            List<Move> nextMoves = [..left_attacks, ..right_attacks, ..single_pushes, ..double_pushes];
+
+            return nextMoves;
+        }
+
+        public static List<Move> GenerateBlackPawnMoves(ulong occupancy, ulong pawnBitboard)
+        {
+            PawnMoves pawnMoves = GetBlackPawnMoves(occupancy, pawnBitboard);
+
+            List<Move> left_attacks = GenerateMovesWithOffset(pawnMoves.LeftAttacks, 7);
+            List<Move> right_attacks = GenerateMovesWithOffset(pawnMoves.RightAttacks, 9);
+
+            List<Move> single_pushes = GenerateMovesWithOffset(pawnMoves.SinglePushForward, 8);
+            List<Move> double_pushes = GenerateMovesWithOffset(pawnMoves.DoublePushForward, 16);
+
+            List<Move> nextMoves = [..left_attacks, ..right_attacks, ..single_pushes, ..double_pushes];
+
+            return nextMoves;
         }
     }
 
@@ -414,14 +620,54 @@ namespace MagicBitboards
                 board[7 - i] = line;
             }
 
-            // board.Reverse();
-
             return string.Join('\n', board);
         }
 
         public static void PrintBitboard(ulong bitboard)
         {
             Console.WriteLine(StringifyBitboard(bitboard));
+        }
+
+        public static void PrintMultipleBitboards(ulong[] bitboards)
+        {
+            List<string[]> boardsToPrint = [];
+
+            foreach (ulong bitboard in bitboards)
+            {
+                string[] board = new string[8];
+
+                for (int i = 0; i < 8; i++)
+                {
+                    string line = "";
+
+                    for (int j = 0; j < 8; j++)
+                    {
+                        ulong sq = 1UL << i * 8 + j;
+
+                        if ((bitboard & sq) != 0)
+                        {
+                            line += "1 ";
+                        }
+                        else
+                        {
+                            line += ". ";
+                        }
+                    }
+
+                    board[7 - i] = line;
+                }
+
+                boardsToPrint.Add(board);
+            }
+
+            for (int line = 0; line < 8; line++)
+            {
+                List<string> linesToPrint = boardsToPrint.Select(board => board[line]).ToList();
+                
+                string lineToPrint = string.Join("    ", linesToPrint);
+
+                Console.WriteLine(lineToPrint);
+            }
         }
     }
 }

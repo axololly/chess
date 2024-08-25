@@ -1,17 +1,31 @@
-﻿using MagicBitboards;
+﻿using MoveGeneration;
 
-public class Program
+class Program
 {
-    public static void Main()
+    static void Main()
     {
-        ulong exampleOccupancy = 0b0101011011010110010111100101011001010111010101100111011001010110;
-
-        Display.PrintBitboard(exampleOccupancy);
+        /*
+        Board position:
+        . 1 . . . . . . 
+        . . . . . . . . 
+        . . 1 . . . . .
+        . . . 1 . 1 1 1
+        . . . . . . 1 .
+        1 . . 1 1 1 1 .
+        1 1 . . . . . .
+        . . . 1 . . . .
+        */
+        ulong exampleOccupancy = 0x20004E840790308;
+        ulong pawnBitboard = 0x780300;
 
         Console.WriteLine();
 
-        var moves = SlidingPieceMoves.GetRookMoves(exampleOccupancy, 43);
+        // var moves = Moves.GetWhitePawnMoves(exampleOccupancy, pawnBitboard);
 
-        Display.PrintBitboard(moves);
+        Display.PrintMultipleBitboards([exampleOccupancy, pawnBitboard]);
+
+        var gen = Moves.GenerateWhitePawnMoves(exampleOccupancy, pawnBitboard);
+
+        Console.WriteLine('[' + string.Join(", ", gen) + ']');
     }
 }
