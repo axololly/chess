@@ -37,16 +37,9 @@ class Program
             board.MakeMove(next);
             
             Console.WriteLine($"Move: {next}  |  Explored {nodes} nodes.");
+            Console.WriteLine($"Board state: {board}");
             Console.WriteLine($"Next moves: [{string.Join(", ", board.GenerateLegalMoves())}]");
-            Console.WriteLine($"Board:\n{board}");
-            Console.WriteLine("Pawn bitboards:");
-            Display.PrintMultipleBitboards([board.White.Pawns, board.Black.Pawns]);
             Console.WriteLine();
-            // Console.WriteLine($"Board state:\n{board}\n");
-            
-            // Console.WriteLine("Bitboards:");
-            // Display.PrintBitboard(board.White.Pawns);
-            // Console.WriteLine();
 
             board.UndoMove();
         }
