@@ -1,5 +1,10 @@
 # Move Generation [Static Pieces]
 
+This section will explain generating moves for the following pieces:
+- Kings (using a pregenerated tablebase)
+- Knights (using a pregenerated tablebase)
+- Pawns (on the fly)
+
 ## Explanation
 Static pieces have fixed reach limits that will always remain the same, no matter the position. Pawns cannot move backwards, kings cannot move off of the board - you get the idea.
 
@@ -113,27 +118,3 @@ if current & fileH:
 We then create a list comprehension of all the bitmasks and store it in a list.
 
 ### _Note: This is written in Python for ease of understanding. Code for a chess engine should be written in a language like C, C++, C# or any other faster language. It is not ideal to use Python for writing a chess engine._
-
-
-## Pawns and Tables
-
-Pawns are quite special pieces. For a start, their attacks are not aligned with their movements, they can promote to a range of pieces at the backrank and they can do a stupid French move that's really cool to watch.
-
-```yml
-. . . . . . . .
-. . . . . . . .
-. . . . . . . .
-. . . . . . . .
-. . . 3 . . . .
-. . 2 1 2 . . .
-. . . P . . . .
-. . . . . . . .
-```
-
-As we can see here:
-- the movement square is listed as `1`
-- the two-spaces pawn push is listed as `3` (because it's optional)
-- the attack squares are listed as `2`'s
-
-You'd think to just take a bitmask of all the pawns, shift it left (up the board) by 7 and 9 then check if they intersect with any of the bits on the occupancy bitboard [continue later]
-

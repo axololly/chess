@@ -1,4 +1,12 @@
 # Move Generation [Sliding Pieces]
+
+This section will cover generating moves for the following pieces uisng a technique called magic bitboards:
+- Bishops
+- Rooks
+- Queens
+
+## Introduction
+
 Sliding pieces can move in any number of squares along the board, and but their moves are halted if "blockers" are in the way. This is for rooks, bishops and queens.
 
 Take this board occupancy as an example. This is a bitmask of all the pieces on the board.
@@ -200,3 +208,14 @@ def get_bishop_moves(occupancy: int, square: int) -> int:
 
     return SLIDING_PIECE_ATTACKS_TABLE[index]
 ```
+
+### Queen Moves
+
+Queens are a combination of bishop moves and rook moves, so we can use a bitwise OR to combine the bits from both of these.
+
+```py
+def get_queen_moves(occupancy: int, square: int) -> int:
+    return get_bishop_moves(occupancy, square) | get_rook_moves(occupancy, square)
+```
+
+That's literally all you have to do for queen moves.
