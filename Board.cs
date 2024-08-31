@@ -109,149 +109,144 @@ namespace ChessBoard
         public PieceSet Black;
         public int moveCounter;
         public byte castlingRights; // 0b1111 => KQkq
-        public List<Move> moveHistory;
+        public List<Move> moveHistory = [];
+        public int sideToMove { get { return moveCounter & 1; } }
         public ulong epSquare;
 
         public Board(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
         {
-            // Get sections of FEN string
-            string[] FENstringSections = FEN.Split();
-
-            // Generate piece bitboard classes
+            // Create piece sets for each side
             White = new(Colour.White);
             Black = new(Colour.Black);
 
-            // Get the castling rights
-            string FENcastlingRights = FENstringSections[2];
+            // Split the FEN string into sections
+            string[] FENstringSections = FEN.Split(' ');
+
+            // Assign variables to each of the sections
+            string boardFEN           =  FENstringSections[0];
+            string sideToMoveString   =  FENstringSections[1];
+            string FENcastlingRights  =  FENstringSections[2];
+            string epSquareString     =  FENstringSections[3];
+            // string halftimeCounter    =  FENstringSections[4];
+            string currentDoubleMove  =  FENstringSections[5];
+
+
+            // Reverse FEN string to have a reversed board format
+            boardFEN = string.Join("/", boardFEN.Split('/').Reverse());
             
-            // Set the castling rights
+            // Fill the board with pieces based on the FEN string
+            BoardArray = new Piece[64];
+            int cursor = 0;
+
+            // Fill the board with ecah character
+            foreach (char c in boardFEN)
+            {
+                // Skip these because we don't use a 2D array
+                if (c == '/') continue;
+
+                // If the current character is a number (eg. N)
+                if (int.TryParse(c.ToString(), out int emptySpaces))
+                {
+                    // Add N empty spaces to the board.
+                    for (int i = 0; i < emptySpaces; i++)
+                    {
+                        BoardArray[cursor++] = Piece.Empty;
+                    }
+
+                    // cursor += emptySpaces; // Keep cursor updated
+                    continue;
+                }
+
+                // Pattern match each character in the FEN string to its
+                // relative Piece enum to be inserted into the board.
+                BoardArray[cursor] = c switch
+                {
+                    'b' => Piece.BlackBishop,
+                    'n' => Piece.BlackKnight,
+                    'r' => Piece.BlackRook,
+                    'q' => Piece.BlackQueen,
+                    'p' => Piece.BlackPawn,
+                    'k' => Piece.BlackKing,
+
+                    'B' => Piece.WhiteBishop,
+                    'N' => Piece.WhiteKnight,
+                    'R' => Piece.WhiteRook,
+                    'Q' => Piece.WhiteQueen,
+                    'K' => Piece.WhiteKing,
+                    'P' => Piece.WhitePawn,
+
+                    _ => throw new Exception($"invalid character '{c}' found in FEN string.")
+                };
+
+                // Pattern match each character in the FEN string to the bitboard
+                // to insert a bit into, using the cursor argument.
+                var _ = c switch
+                {
+                    'b' => Black.Bishops |= 1UL << cursor,
+                    'n' => Black.Knights |= 1UL << cursor,
+                    'r' => Black.Rooks   |= 1UL << cursor,
+                    'q' => Black.Queens  |= 1UL << cursor,
+                    'k' => Black.King    |= 1UL << cursor,
+                    'p' => Black.Pawns   |= 1UL << cursor,
+
+                    'B' => White.Bishops |= 1UL << cursor,
+                    'N' => White.Knights |= 1UL << cursor,
+                    'R' => White.Rooks   |= 1UL << cursor,
+                    'Q' => White.Queens  |= 1UL << cursor,
+                    'K' => White.King    |= 1UL << cursor,
+                    'P' => White.Pawns   |= 1UL << cursor,
+
+                    _ => throw new Exception($"invalid character '{c}' found in FEN string.")
+                };
+
+                // Increase the cursor to the new position
+                cursor++;
+            }
+
+
+            // Set move counter based on side to move and current double move
+            int sideToMoveIncrease = sideToMoveString switch
+            {
+                "w" => 0, "b" => 1,
+                _ => throw new Exception($"invalid side to move character.")
+            };
+
+            if (!int.TryParse(currentDoubleMove, out int currentDoubleMoveNumber))
+            {
+                throw new Exception($"invalid current move character.");
+            }
+
+            moveCounter = currentDoubleMoveNumber * 2 + sideToMoveIncrease;
+
+
+            // Set castling rights
+            castlingRights = 0;
+
             foreach (char castlingRight in FENcastlingRights)
             {
-                castlingRights |= castlingRight switch
-                {
+                castlingRights |= castlingRight switch {
                     'K' => 0b1000,
                     'Q' => 0b0100,
                     'k' => 0b0010,
                     'q' => 0b0001,
-                    _ => 0, // to cover '\0' and '-' character
+                    _ => throw new Exception("invalid castling rights.")
                 };
             }
 
-            // Set the en-passant square
-            string epSquareSection = FENstringSections[3];
 
-            if (epSquareSection == "-")
+            // Set an en-passant square
+            if (epSquareString != "-")
             {
-                epSquare = 0;
-            }
-            else
-            {
-                int file = "abcdefgh".IndexOf(epSquareSection[0]);
-                int rank = "12345678".IndexOf(epSquareSection[1]);
-                epSquare = 1UL << (rank * 8 + file);
+                int rank = "12345678".IndexOf(epSquareString[1]);
+                int file = "abcdefgh".IndexOf(epSquareString[0]);
+
+                int epSquareIndex = rank * 8 + file;
+
+                epSquare = 1UL << epSquareIndex;
             }
 
-            // Display the board
-            BoardArray = new Piece[64];
-            Array.Fill(BoardArray, Piece.Empty);
 
-            string boardFEN = FENstringSections[0];
-            
-            // Position of where to input a piece to
-            // in BoardRepresentation
-            int position = 0;
-
-            // Array of characters. Index relates to the
-            // enum value of each piece the char represents
-            char[] pieces = [
-                'P', 'p', 'N', 'n', 'B', 'b',
-                'R', 'r', 'Q', 'q', 'K', 'k'
-            ];
-
-            foreach (char C in boardFEN)
-            {
-                // Skip useless character
-                if (C == '/') continue;
-                
-                // Add empty spaces for each number
-                if (int.TryParse(C.ToString(), out int emptySpaceCount))
-                {
-                    position += emptySpaceCount;
-                    continue;
-                }
-
-                // Not a useless character and not an empty space indicator.
-                // This is a piece to add to the board.
-                int T = Array.IndexOf(pieces, C);
-                Piece piece = (Piece)T;
-
-                // Add to bitboards depending on piece.
-                switch (piece)
-                {
-                    case Piece.WhitePawn:
-                        White.Pawns |= 1UL << (position ^ 56);
-                        break;
-                    
-                    case Piece.WhiteBishop:
-                        White.Bishops |= 1UL << (position ^ 56);
-                        break;
-
-                    case Piece.WhiteKnight:
-                        White.Knights |= 1UL << (position ^ 56);
-                        break;
-                    
-                    case Piece.WhiteRook:
-                        White.Rooks |= 1UL << (position ^ 56);
-                        break;
-                    
-                    case Piece.WhiteQueen:
-                        White.Queens |= 1UL << (position ^ 56);
-                        break;
-                    
-                    case Piece.WhiteKing:
-                        White.King |= 1UL << (position ^ 56);
-                        break;
-
-                    case Piece.BlackPawn:
-                        Black.Pawns |= 1UL << (position ^ 56);
-                        break;
-                    
-                    case Piece.BlackBishop:
-                        Black.Bishops |= 1UL << (position ^ 56);
-                        break;
-
-                    case Piece.BlackKnight:
-                        Black.Knights |= 1UL << (position ^ 56);
-                        break;
-
-                    case Piece.BlackRook:
-                        Black.Rooks |= 1UL << (position ^ 56);
-                        break;
-
-                    case Piece.BlackQueen:
-                        Black.Queens |= 1UL << (position ^ 56);
-                        break;
-
-                    case Piece.BlackKing:
-                        Black.King |= 1UL << (position ^ 56);
-                        break;
-                };
-
-                BoardArray[position++] = piece;
-            }
-
-            int sideToMove = FENstringSections[1] switch
-            {
-                "w" => 0, "b" => 1,
-                _ => 0 // default case, never reached
-            };
-
-            int.TryParse(FENstringSections[5], out int onWhatMove);
-
-            onWhatMove -= 1;
-            moveCounter = sideToMove + onWhatMove;
-
-            moveHistory = [];
+            // TODO: Set halftime move counter
         }
 
 
@@ -295,156 +290,316 @@ namespace ChessBoard
                 Piece.WhiteRook   =>  White.Rooks = bitboard,
                 Piece.WhiteKing   =>  White.King = bitboard,
 
-                _ => throw new Exception("invalid enum type - cannot set bitboard for this enum.")
+                _ => throw new Exception($"invalid enum type - cannot set bitboard for enum \"{pieceEnum}\".")
             };
         }
 
 
         public void MakeMove(Move move)
         {
-            // Get the piece being moved
-            Piece pieceToMove = BoardArray[move.src ^ 56];
-
-            if (pieceToMove == Piece.Empty)
-            {
-                throw new Exception($"cannot move an empty piece.\nMove: {move}\nBoard:\n{this}");
-            }
-
-            // Get the bitboard associated with the piece being moved.
-            ulong bb = GetBitboardFromEnum(pieceToMove);
-
-            // Update the bitboard to remove previous position and add new position.
-            bb ^= 1UL << move.src | 1UL << move.dst;
-            SetBitboardFromEnum(pieceToMove, bb);
-
-            Piece pieceLandedOn;
-            
-            if (move.type == MoveType.EnPassant)
-            {
-                int epSquareIndex;
-
-                try
-                {
-                    epSquareIndex = PieceSet.BitIndexes(epSquare)[0];
-                }
-                catch
-                {
-                    throw new Exception("cannot play en-passant where no en-passant location is apparent");
-                }
-
-                int shift = ((moveCounter + 1) & 1) == 0 ? 8 : -8;
-
-                pieceLandedOn = BoardArray[(epSquareIndex + shift) ^ 56];
-                
-                // Clear the piece off the board array since the final
-                // update to the array doesn't account for en-passant.
-                BoardArray[(epSquareIndex + shift) ^ 56] = Piece.Empty;
-            }
-            else
-            {
-                pieceLandedOn = BoardArray[move.dst ^ 56];
-            }
-
-            if (move.type == MoveType.PawnDoublePush)
-            {
-                // When we push pawns, they will travel 2 squares. This means
-                // we don't need to backtrack 1 square depending on which way
-                // the pawn moved (up for white and down for black), we can
-                // just "average" between the two to get exactly where the new
-                // EP square should be.
-                int newEPsquare = (move.src + move.dst) / 2;
-                epSquare = 1UL << newEPsquare;
-
-                // string square = $"{"abcdefgh"[newEPsquare % 8]}{"12345678"[newEPsquare / 8]}";
-                // Console.WriteLine($"New EP square: {square}  (Move: {move})");
-            }
-            else
-            {
-                epSquare = 0;
-            }
-
-            move.capturedPiece = pieceLandedOn;
-
-            // Update any bitboards with collisions (on captures)
-            if (pieceLandedOn != Piece.Empty)
-            {
-                bb = GetBitboardFromEnum(pieceLandedOn);
-                
-                if (move.type != MoveType.EnPassant)
-                {
-                    bb ^= 1UL << move.dst;
-                }
-                else
-                {
-                    // If the pawn moving is white, shift bit down by 8.
-                    // If the pawn moving is black, shift bit up by 8.
-                    int shift = ((int)pieceToMove & 1) == 1 ? 8 : -8;
-                    bb ^= 1UL << move.dst + shift;
-                }
-
-                SetBitboardFromEnum(pieceLandedOn, bb);
-            }
-
-            // Update the array
-            BoardArray[move.src ^ 56] = Piece.Empty;
-            BoardArray[move.dst ^ 56] = pieceToMove;
-
-            moveCounter += 1;
-
+            // Archive move
             moveHistory.Add(move);
+            moveCounter++;
+
+            // Modify the board based on the type of move played
+            switch (move.type)
+            {
+                case MoveType.Normal:
+                    Piece pieceToMove = BoardArray[move.src];
+                    
+                    // Update piece bitboard
+                    ulong bb = GetBitboardFromEnum(pieceToMove);
+                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    SetBitboardFromEnum(pieceToMove, bb);
+
+                    // Check if piece was a capture
+                    if (BoardArray[move.dst] != Piece.Empty)
+                    {
+                        // Get the piece that was captured
+                        Piece pieceCaptured = BoardArray[move.dst];
+
+                        // Update the captured piece's bitboard
+                        bb = GetBitboardFromEnum(pieceCaptured);
+                        bb ^= 1UL << move.dst;
+                        SetBitboardFromEnum(pieceCaptured, bb);
+
+                        move.capturedPiece = pieceCaptured;
+                    }
+
+                    // Update board array
+                    BoardArray[move.src] = Piece.Empty;
+                    BoardArray[move.dst] = pieceToMove;
+
+                    // Clear en-passant square
+                    epSquare = 0;
+
+                    break;
+
+                case MoveType.EnPassant:
+                    // Clear EP square (already been used)
+                    epSquare = 0;
+
+                    // Operates like a normal move
+                    pieceToMove = sideToMove == 0 ? Piece.WhitePawn : Piece.BlackPawn;
+                    
+                    // Update bitboard of piece
+                    bb = GetBitboardFromEnum(pieceToMove);
+                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    SetBitboardFromEnum(pieceToMove, bb);
+
+                    // Update board array
+                    BoardArray[move.src] = Piece.Empty;
+                    BoardArray[move.dst] = pieceToMove;
+
+                    // Get square of pawn to capture
+                    int inFrontOfEPsquare = move.dst + (sideToMove == 0 ? -8 : 8);
+                    
+                    Piece opponentPawnType = sideToMove == 0 ? Piece.BlackPawn : Piece.WhitePawn;
+                    
+                    // Remove pawn from bitboard and update it
+                    ulong opponentPawnBB = GetBitboardFromEnum(opponentPawnType);
+                    opponentPawnBB ^= 1UL << inFrontOfEPsquare;
+                    SetBitboardFromEnum(opponentPawnType, opponentPawnBB);
+
+                    // Remove pawn from board array
+                    BoardArray[inFrontOfEPsquare] = Piece.Empty;
+
+                    break;
+                
+                case MoveType.PawnDoublePush:
+                    // Get the square behind the pawn by getting the
+                    // middle square between the start and end of the
+                    // double pawn push.
+                    int newEPsquare = (move.src + move.dst) / 2;
+                    epSquare = 1UL << newEPsquare;
+
+                    // Get piece to move
+                    Piece pawnToMove = BoardArray[move.src];
+                    
+                    // Update piece bitboard
+                    bb = GetBitboardFromEnum(pawnToMove);
+                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    SetBitboardFromEnum(pawnToMove, bb);
+
+                    // Update board array
+                    BoardArray[move.src] = Piece.Empty;
+                    BoardArray[move.dst] = pawnToMove;
+
+                    break;
+                
+                case MoveType.Castling:
+                    // Clear en-passant square
+                    epSquare = 0;
+
+                    // Get the king moving
+                    Piece kingToMove = sideToMove == 0 ? Piece.WhiteKing : Piece.BlackKing;
+                    
+                    // Reset castling rights depending on side
+                    castlingRights ^= (byte)(sideToMove == 0 ? 0b1100 : 0b0011);
+
+                    // Update bitboard of king
+                    bb = GetBitboardFromEnum(kingToMove);
+                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    SetBitboardFromEnum(kingToMove, bb);
+
+                    // Get position of rook to castle with on the board
+                    int rookPosition = move.dst switch
+                    {
+                        2 => 0,    // from C1 to A1
+                        6 => 7,    // from G1 to H1
+
+                        58 => 56,  // from C8 to A8
+                        62 => 63,  // from G8 to H8
+                        
+                        _ => throw new Exception($"invalid castling destination square. Move: {move}")
+                    };
+
+                    // Rook will always end up between the king's start and end square
+                    int endRookPosition = (move.src + move.dst) / 2;
+
+                    // Get rook enum (used for obtaining bitboard)
+                    Piece rookEnum = sideToMove == 0 ? Piece.WhiteRook : Piece.BlackRook;
+                    
+                    // Update bitboard of rook
+                    ulong rookBB = GetBitboardFromEnum(rookEnum);
+                    rookBB ^= 1UL << rookPosition | 1UL << endRookPosition;
+                    SetBitboardFromEnum(rookEnum, rookBB);
+
+                    break;
+                
+                default: // move flag was unaccounted for
+                    throw new Exception($"move flag \"{move.type}\" on move {move} unaccounted for.");
+            }
         }
 
         public void UndoMove()
         {
-            // Get last move made and remove it off list
-            Move previousMove = moveHistory.Last();
+            if (moveHistory.Count == 0)
+            {
+                throw new Exception("cannot undo when no moves on the board have been played.");
+            }
+
+            // Get and remove last move from move history
+            Move prev = moveHistory[^1]; // Get last item from list
             moveHistory.RemoveAt(moveHistory.Count - 1);
             
-            moveCounter--;
+            moveCounter--; // Decrease move counter
 
-            // Get bitboard of piece that moved
-            Piece pieceThatMoved = BoardArray[previousMove.dst ^ 56];
-
-            ulong bb;
-
-            if (pieceThatMoved != Piece.Empty)
+            // Edit board based on type of previous move
+            switch (prev.type)
             {
-                bb = GetBitboardFromEnum(pieceThatMoved);
-                bb ^= 1UL << previousMove.dst | 1UL << previousMove.src; // Undo move on bitboard
+                case MoveType.Normal:
+                    Piece pieceThatMoved = BoardArray[prev.dst];
 
-                if (previousMove.type == MoveType.EnPassant)
-                {
-                    Piece opponentPawnType = (moveCounter & 1) == 1 ? Piece.WhitePawn : Piece.BlackPawn;
+                    // Update bitboard of piece
+                    ulong bb = GetBitboardFromEnum(pieceThatMoved);
+                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    SetBitboardFromEnum(pieceThatMoved, bb);
 
-                    ulong opponentPawnBB = GetBitboardFromEnum(opponentPawnType);
+                    // Check if a piece was captured
+                    // If so, update their bitboard as well
+                    if (prev.capturedPiece != Piece.Empty)
+                    {
+                        bb = GetBitboardFromEnum(prev.capturedPiece);
+                        bb ^= 1UL << prev.dst;
+                        SetBitboardFromEnum(prev.capturedPiece, bb);
+                    }
 
-                    int shift = ((int)pieceThatMoved & 1) == 1 ? 8 : -8;
-                    opponentPawnBB ^= 1UL << previousMove.dst + shift;
+                    BoardArray[prev.dst] = Piece.Empty;
+                    BoardArray[prev.src] = pieceThatMoved;
 
-                    SetBitboardFromEnum(opponentPawnType, opponentPawnBB);
+                    break;
 
-                    BoardArray[(previousMove.dst + shift) ^ 56] = opponentPawnType;
+                case MoveType.EnPassant:
+                    // Get whichever pawn type did the en-passant
+                    Piece pawnType = sideToMove == 0 ? Piece.WhitePawn : Piece.BlackPawn;
+                    
+                    // Update bitboard of that piece
+                    bb = GetBitboardFromEnum(pawnType);
+                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    SetBitboardFromEnum(pawnType, bb);
 
-                    // Make sure to set the EP square back to what it was before
-                    epSquare = 1UL << previousMove.dst;
-                }
-                
-                SetBitboardFromEnum(pieceThatMoved, bb);
+                    Piece opponentPawnType = sideToMove == 0 ? Piece.BlackPawn : Piece.WhitePawn;
+
+                    // Get the square in front of the EP square (relative to the side moving)
+                    int squarePawnWasTakenFrom = prev.dst + (sideToMove == 0 ? -8 : 8);
+
+                    // Update bitboard of opponent pawn type
+                    // (replace the pawn that was captured)
+                    bb = GetBitboardFromEnum(opponentPawnType);
+                    bb ^= 1UL << squarePawnWasTakenFrom;
+                    SetBitboardFromEnum(opponentPawnType, bb);
+
+                    // Update board array
+                    BoardArray[prev.src] = pawnType;
+                    BoardArray[prev.dst] = Piece.Empty;
+                    BoardArray[squarePawnWasTakenFrom] = opponentPawnType;
+
+                    // En-passant square is previous move destination
+                    epSquare = 1UL << prev.dst;
+
+                    break;
+
+                case MoveType.PawnDoublePush:
+                    pawnType = sideToMove == 0 ? Piece.WhitePawn : Piece.BlackPawn;
+
+                    bb = GetBitboardFromEnum(pawnType);
+                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    SetBitboardFromEnum(pawnType, bb);
+
+                    // Remove en-passant square
+                    epSquare = 0;
+
+                    // Update board array
+                    BoardArray[prev.src] = pawnType;
+                    BoardArray[prev.dst] = Piece.Empty;
+
+                    break;
+
+                case MoveType.Castling:
+                    Piece kingEnum = sideToMove == 0 ? Piece.WhiteKing : Piece.BlackKing;
+
+                    // Update king bitboard
+                    bb = GetBitboardFromEnum(kingEnum);
+                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    SetBitboardFromEnum(kingEnum, bb);
+
+                    // Get rook position
+                    // Rook position is always between the king's source
+                    // and the king's destination square
+                    int rookPosition = (prev.src + prev.dst) / 2;
+
+                    // Get the end rook position:
+                    /*
+                       1 => start pos
+                       2 => end pos
+
+                       2 . . 1 . 1 . 2
+                       . . . . . . . .
+                       . . . . . . . .
+                       . . . . . . . .
+                       . . . . . . . .
+                       . . . . . . . .
+                       . . . . . . . .
+                       2 . . 1 . 1 . 2
+                    */
+                    int endRookPosition = rookPosition switch
+                    {
+                        3 => 0, // from D1 to A1
+                        5 => 7, // from F1 to H1
+
+                        59 => 56, // from D8 to A8
+                        61 => 63, // from F8 to H8
+
+                        _ => throw new Exception("invalid rook position.")
+                    };
+                    
+                    Piece rookEnum = sideToMove == 0 ? Piece.WhiteRook : Piece.BlackRook;
+
+                    // Update rook bitboard
+                    bb = GetBitboardFromEnum(rookEnum);
+                    bb ^= 1UL << rookPosition | 1UL << endRookPosition;
+                    SetBitboardFromEnum(rookEnum, bb);
+
+                    // Reset castling rights conditionally
+                    if (prev.src < prev.dst) // castle left
+                    {
+                        if (sideToMove == 0) // white castling
+                        {
+                            castlingRights |= 0b1000;
+                        }
+                        else // black castling
+                        {
+                            castlingRights |= 0b0010;
+                        }
+                    }
+                    else // castle right
+                    {
+                        if (sideToMove == 0) // white castling
+                        {
+                            castlingRights |= 0b0100;
+                        }
+                        else // black castling
+                        {
+                            castlingRights |= 0b0001;
+                        }
+                    }
+
+                    // Update board array
+                    BoardArray[prev.dst] = Piece.Empty;
+                    BoardArray[prev.src] = kingEnum;
+
+                    BoardArray[rookPosition] = rookEnum;
+                    BoardArray[endRookPosition] = Piece.Empty;
+
+                    // Remove en-passant square
+                    epSquare = 0;
+
+                    break;
+
+                default:
+                    throw new Exception($"move flag \"{prev.type}\" on move {prev} unaccounted for.");
             }
-
-            // Check if capture and update that bitboard
-            if ( previousMove.capturedPiece != Piece.Empty
-                 && previousMove.type != MoveType.EnPassant )
-            {
-                bb = GetBitboardFromEnum(previousMove.capturedPiece);
-                bb ^= 1UL << previousMove.dst;
-                
-                SetBitboardFromEnum(previousMove.capturedPiece, bb);
-            }
-
-            // Update the board array
-            BoardArray[previousMove.dst ^ 56] = Piece.Empty;
-            BoardArray[previousMove.src ^ 56] = pieceThatMoved;
         }
 
         
@@ -656,7 +811,7 @@ namespace ChessBoard
                     line += stringPiece + " ";
                 }
 
-                board[rank] = line;
+                board[7 - rank] = line;
             }
 
             return string.Join("\n", board);
@@ -691,10 +846,7 @@ namespace ChessBoard
                     if ((i & 7) == 7)
                     {
                         FEN += $"{emptySpaces}/";
-                    }
-
-                    // continue;
-                }
+                    }                }
 
                 FEN += BoardArray[i] switch
                 {

@@ -37,11 +37,16 @@ class Program
             board.MakeMove(next);
             
             Console.WriteLine($"Move: {next}  |  Explored {nodes} nodes.");
-            Console.WriteLine($"Board state:\n{board}\n");
-            
-            Console.WriteLine("Bitboards:");
-            Display.PrintBitboard(board.White.Pawns);
+            Console.WriteLine($"Next moves: [{string.Join(", ", board.GenerateLegalMoves())}]");
+            Console.WriteLine($"Board:\n{board}");
+            Console.WriteLine("Pawn bitboards:");
+            Display.PrintMultipleBitboards([board.White.Pawns, board.Black.Pawns]);
             Console.WriteLine();
+            // Console.WriteLine($"Board state:\n{board}\n");
+            
+            // Console.WriteLine("Bitboards:");
+            // Display.PrintBitboard(board.White.Pawns);
+            // Console.WriteLine();
 
             board.UndoMove();
         }
@@ -63,15 +68,13 @@ class Program
         FileStream fs = new("output.txt", FileMode.Create, FileAccess.Write);
         StreamWriter sw = new(fs);
         Console.SetOut(sw);
-
-        // board.Play(Move.FromString("c2c4", MoveType.PawnDoublePush));
         
         Console.WriteLine("Start:");
         Console.WriteLine(board);
 
         Console.WriteLine();
 
-        MoveByMovePerft(2);
+        MoveByMovePerft(3);
 
         Console.WriteLine();
 
@@ -83,7 +86,8 @@ class Program
 
     static void Main()
     {
-        OutputPerftTest();
+        board.MakeMove(Move.FromString("a2a3"));
+        MoveByMovePerft(2);
     }
 
     public static Board board = new();
