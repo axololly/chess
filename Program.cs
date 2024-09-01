@@ -1,6 +1,7 @@
 using ChessBoard;
 using MoveGeneration;
 using Utilities;
+using System.Threading;
 
 class Program
 {
@@ -12,8 +13,10 @@ class Program
 
         int count = 0;
 
-        foreach (Move next in nextMoves)
+        for (int i = 0; i < nextMoves.Count; i++)
         {
+            Move next = nextMoves[i];
+
             board.MakeMove(next);
             count += perftTest(depth - 1);
             board.UndoMove();
@@ -29,17 +32,20 @@ class Program
 
         int total = 0;
 
-        foreach (Move next in board.GenerateLegalMoves())
+        var nextMoves = board.GenerateLegalMoves();
+
+        for (int i= 0; i < nextMoves.Count; i++)
         {
-            int nodes = perftTest(depth - 1);
-            total += nodes;
+            Move next = nextMoves[i];
 
             board.MakeMove(next);
+
+            int nodes = perftTest(depth - 1);
+            total += nodes;
             
-            Console.WriteLine($"Move: {next}  |  Explored {nodes} nodes.");
-            Console.WriteLine($"Board state: {board}");
-            Console.WriteLine($"Next moves: [{string.Join(", ", board.GenerateLegalMoves())}]");
-            Console.WriteLine();
+            // Console.WriteLine($"Move: {next}  |  Explored {nodes} nodes.");
+            Console.WriteLine($"{next} - {nodes}");
+            // Console.WriteLine($"Board after:\n{board}\n");
 
             board.UndoMove();
         }
@@ -56,18 +62,15 @@ class Program
         }
     }
 
-    static void OutputPerftTest()
+    static void OutputPerftTest(int depth)
     {
         FileStream fs = new("output.txt", FileMode.Create, FileAccess.Write);
         StreamWriter sw = new(fs);
         Console.SetOut(sw);
         
         Console.WriteLine("Start:");
-        Console.WriteLine(board);
 
-        Console.WriteLine();
-
-        MoveByMovePerft(3);
+        MoveByMovePerft(depth);
 
         Console.WriteLine();
 
@@ -79,8 +82,8 @@ class Program
 
     static void Main()
     {
-        board.MakeMove(Move.FromString("a2a3"));
-        MoveByMovePerft(2);
+        // OutputPerftTest(1);
+        MoveByMovePerft(3);
     }
 
     public static Board board = new();

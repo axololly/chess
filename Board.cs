@@ -102,6 +102,14 @@ namespace ChessBoard
         Empty
     }
 
+    public class BoardInfo
+    {
+        public ulong EPsquare;
+        // public int halftimeCounter;
+        public byte castlingRights;
+        public Piece capturedPiece = Piece.Empty;
+    }
+
     public class Board
     {
         public Piece[] BoardArray;
@@ -109,7 +117,8 @@ namespace ChessBoard
         public PieceSet Black;
         public int moveCounter;
         public byte castlingRights; // 0b1111 => KQkq
-        public List<Move> moveHistory = [];
+        public Stack<Move> moveHistory = new();
+        public Stack<BoardInfo> boardHistory = new();
         public int sideToMove { get { return moveCounter & 1; } }
         public ulong epSquare;
 
@@ -298,8 +307,15 @@ namespace ChessBoard
         public void MakeMove(Move move)
         {
             // Archive move
-            moveHistory.Add(move);
+            moveHistory.Push(move);
             moveCounter++;
+
+            // Board info for archiving
+            BoardInfo boardInfo = new()
+            {
+                EPsquare = epSquare,
+                castlingRights = castlingRights,
+            };
 
             // Modify the board based on the type of move played
             switch (move.type)
@@ -323,7 +339,7 @@ namespace ChessBoard
                         bb ^= 1UL << move.dst;
                         SetBitboardFromEnum(pieceCaptured, bb);
 
-                        move.capturedPiece = pieceCaptured;
+                        boardInfo.capturedPiece = pieceCaptured;
                     }
 
                     // Update board array
@@ -430,6 +446,8 @@ namespace ChessBoard
                 default: // move flag was unaccounted for
                     throw new Exception($"move flag \"{move.type}\" on move {move} unaccounted for.");
             }
+
+            boardHistory.Push(boardInfo);
         }
 
         public void UndoMove()
@@ -439,34 +457,44 @@ namespace ChessBoard
                 throw new Exception("cannot undo when no moves on the board have been played.");
             }
 
-            // Get and remove last move from move history
-            Move prev = moveHistory[^1]; // Get last item from list
-            moveHistory.RemoveAt(moveHistory.Count - 1);
+            // Get last move and last board info
+            Move previousMove = moveHistory.Pop();
+            BoardInfo previousBoardInfo = boardHistory.Pop();
             
             moveCounter--; // Decrease move counter
 
             // Edit board based on type of previous move
-            switch (prev.type)
+            switch (previousMove.type)
             {
                 case MoveType.Normal:
-                    Piece pieceThatMoved = BoardArray[prev.dst];
+                    Piece pieceThatMoved = BoardArray[previousMove.dst];
 
                     // Update bitboard of piece
-                    ulong bb = GetBitboardFromEnum(pieceThatMoved);
-                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    ulong bb;
+                    
+                    try
+                    {
+                        bb = GetBitboardFromEnum(pieceThatMoved);
+                    }
+                    catch
+                    {
+                        throw new Exception($"cannot get bitboard for this enum.\nBoard:\n{this}");
+                    }
+
+                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
                     SetBitboardFromEnum(pieceThatMoved, bb);
 
                     // Check if a piece was captured
                     // If so, update their bitboard as well
-                    if (prev.capturedPiece != Piece.Empty)
+                    if (previousBoardInfo.capturedPiece != Piece.Empty)
                     {
-                        bb = GetBitboardFromEnum(prev.capturedPiece);
-                        bb ^= 1UL << prev.dst;
-                        SetBitboardFromEnum(prev.capturedPiece, bb);
+                        bb = GetBitboardFromEnum(previousBoardInfo.capturedPiece);
+                        bb ^= 1UL << previousMove.dst;
+                        SetBitboardFromEnum(previousBoardInfo.capturedPiece, bb);
                     }
 
-                    BoardArray[prev.dst] = Piece.Empty;
-                    BoardArray[prev.src] = pieceThatMoved;
+                    BoardArray[previousMove.dst] = previousBoardInfo.capturedPiece;
+                    BoardArray[previousMove.src] = pieceThatMoved;
 
                     break;
 
@@ -476,13 +504,13 @@ namespace ChessBoard
                     
                     // Update bitboard of that piece
                     bb = GetBitboardFromEnum(pawnType);
-                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
                     SetBitboardFromEnum(pawnType, bb);
 
                     Piece opponentPawnType = sideToMove == 0 ? Piece.BlackPawn : Piece.WhitePawn;
 
                     // Get the square in front of the EP square (relative to the side moving)
-                    int squarePawnWasTakenFrom = prev.dst + (sideToMove == 0 ? -8 : 8);
+                    int squarePawnWasTakenFrom = previousMove.dst + (sideToMove == 0 ? -8 : 8);
 
                     // Update bitboard of opponent pawn type
                     // (replace the pawn that was captured)
@@ -491,12 +519,12 @@ namespace ChessBoard
                     SetBitboardFromEnum(opponentPawnType, bb);
 
                     // Update board array
-                    BoardArray[prev.src] = pawnType;
-                    BoardArray[prev.dst] = Piece.Empty;
+                    BoardArray[previousMove.src] = pawnType;
+                    BoardArray[previousMove.dst] = Piece.Empty;
                     BoardArray[squarePawnWasTakenFrom] = opponentPawnType;
 
                     // En-passant square is previous move destination
-                    epSquare = 1UL << prev.dst;
+                    epSquare = previousBoardInfo.EPsquare;
 
                     break;
 
@@ -504,15 +532,15 @@ namespace ChessBoard
                     pawnType = sideToMove == 0 ? Piece.WhitePawn : Piece.BlackPawn;
 
                     bb = GetBitboardFromEnum(pawnType);
-                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
                     SetBitboardFromEnum(pawnType, bb);
 
                     // Remove en-passant square
                     epSquare = 0;
 
                     // Update board array
-                    BoardArray[prev.src] = pawnType;
-                    BoardArray[prev.dst] = Piece.Empty;
+                    BoardArray[previousMove.src] = pawnType;
+                    BoardArray[previousMove.dst] = Piece.Empty;
 
                     break;
 
@@ -521,13 +549,13 @@ namespace ChessBoard
 
                     // Update king bitboard
                     bb = GetBitboardFromEnum(kingEnum);
-                    bb ^= 1UL << prev.dst | 1UL << prev.src;
+                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
                     SetBitboardFromEnum(kingEnum, bb);
 
                     // Get rook position
                     // Rook position is always between the king's source
                     // and the king's destination square
-                    int rookPosition = (prev.src + prev.dst) / 2;
+                    int rookPosition = (previousMove.src + previousMove.dst) / 2;
 
                     // Get the end rook position:
                     /*
@@ -561,33 +589,12 @@ namespace ChessBoard
                     bb ^= 1UL << rookPosition | 1UL << endRookPosition;
                     SetBitboardFromEnum(rookEnum, bb);
 
-                    // Reset castling rights conditionally
-                    if (prev.src < prev.dst) // castle left
-                    {
-                        if (sideToMove == 0) // white castling
-                        {
-                            castlingRights |= 0b1000;
-                        }
-                        else // black castling
-                        {
-                            castlingRights |= 0b0010;
-                        }
-                    }
-                    else // castle right
-                    {
-                        if (sideToMove == 0) // white castling
-                        {
-                            castlingRights |= 0b0100;
-                        }
-                        else // black castling
-                        {
-                            castlingRights |= 0b0001;
-                        }
-                    }
+                    // Reset castling rights
+                    castlingRights = previousBoardInfo.castlingRights;
 
                     // Update board array
-                    BoardArray[prev.dst] = Piece.Empty;
-                    BoardArray[prev.src] = kingEnum;
+                    BoardArray[previousMove.dst] = Piece.Empty;
+                    BoardArray[previousMove.src] = kingEnum;
 
                     BoardArray[rookPosition] = rookEnum;
                     BoardArray[endRookPosition] = Piece.Empty;
@@ -598,7 +605,7 @@ namespace ChessBoard
                     break;
 
                 default:
-                    throw new Exception($"move flag \"{prev.type}\" on move {prev} unaccounted for.");
+                    throw new Exception($"move flag \"{previousMove.type}\" on move {previousMove} unaccounted for.");
             }
         }
 
@@ -613,7 +620,7 @@ namespace ChessBoard
             ulong attackers = 0;
 
             // Check for enemy knights
-            attackers |= attackingSideClass.Knights & Moves.GetKnightMoveBitmask(boardMask, square);
+            attackers |= attackingSideClass.Knights & Moves.GetKnightMoveBitmask(attackingSideClass.ALL(), square);
             
             // Check for enemy bishops. Add a variable for reuse
             ulong bishopMoves = Moves.GetBishopMoveBitmask(boardMask, square);
@@ -754,9 +761,17 @@ namespace ChessBoard
             }
         
             generateMoves(sideToMove.Bishops, Moves.GenerateBishopMoves);
-            generateMoves(sideToMove.Knights, Moves.GenerateKnightMoves);
             generateMoves(sideToMove.Rooks,   Moves.GenerateRookMoves  );
             generateMoves(sideToMove.Queens,  Moves.GenerateQueenMoves );
+
+            foreach (int position in PieceSet.BitIndexes(sideToMove.Knights))
+            {
+                Moves.GenerateKnightMoves(
+                    friendlyOccupancy: sideToMove.ALL(),
+                    square: position,
+                    moveListToAddTo: moves
+                );
+            }
 
             Moves.GenerateKingMoves(
                 friendlyPieces: sideToMove,

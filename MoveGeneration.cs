@@ -375,17 +375,15 @@ namespace MoveGeneration
         Normal,
         PawnDoublePush,
         Castling,
-        EnPassant
+        EnPassant,
+        Promotion
     }
 
-    public partial struct Move // TODO: find out what needs Move to be partial
+    public partial class Move // TODO: find out what needs Move to be partial
     {
         public int src; // Where the move starts
         public int dst; // Where the move ends
         public MoveType type; // Type of move
-        public Piece capturedPiece = Piece.Empty;
-
-        public Move() {}
 
         public static Move FromString(string moveString, MoveType type = MoveType.Normal)
         {
@@ -580,14 +578,14 @@ namespace MoveGeneration
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
 
-        public static ulong GetKnightMoveBitmask(ulong occupancy, int square)
+        public static ulong GetKnightMoveBitmask(ulong friendlyOccupancy, int square)
         {
-            return ~occupancy & fmt.KNIGHT_MOVES_TABLE[square];
+            return ~friendlyOccupancy & fmt.KNIGHT_MOVES_TABLE[square];
         }
 
-        public static void GenerateKnightMoves(ulong friendlyOccupancy, ulong opponentOccupancy, int square, List<Move> moveListToAddTo)
+        public static void GenerateKnightMoves(ulong friendlyOccupancy, int square, List<Move> moveListToAddTo)
         {
-            ulong moveBitmask = GetKnightMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
+            ulong moveBitmask = GetKnightMoveBitmask(friendlyOccupancy, square);
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -617,7 +615,7 @@ namespace MoveGeneration
             moves.RightAttacks &= ~whiteMask;
 
             moves.SinglePushForward = ~occupancy & (pawnBitboard << 8);
-            moves.DoublePushForward = (moves.SinglePushForward & BoardRank.Third) << 8;
+            moves.DoublePushForward = ~occupancy & (moves.SinglePushForward & BoardRank.Third) << 8;
 
             return moves;
         }
@@ -637,7 +635,7 @@ namespace MoveGeneration
             moves.RightAttacks &= ~blackMask;
 
             moves.SinglePushForward = ~occupancy & (pawnBitboard >> 8);
-            moves.DoublePushForward = (moves.SinglePushForward & BoardRank.Sixth) >> 8;
+            moves.DoublePushForward = ~occupancy & (moves.SinglePushForward & BoardRank.Sixth) >> 8;
 
             return moves;
         }
