@@ -15,7 +15,7 @@ namespace ChessBoard
         public ulong Queens = 0;
         public ulong King = 0;
 
-        public int KingSquare { get { return BitIndexes(King)[0]; } }
+        public int KingSquare { get { return BitOperations.TrailingZeroCount(King); } }
 
         public ulong ALL() => Bishops | Knights | Rooks | Pawns | Queens | King;
 
@@ -297,7 +297,9 @@ namespace ChessBoard
                 Piece.WhiteRook   =>  White.Rooks,
                 Piece.WhiteKing   =>  White.King,
 
-                _ => throw new Exception($"invalid enum type - cannot get bitboard for the enum \"{pieceEnum}\".")
+                Piece.Empty => throw new Exception($"cannot obtain bitboard for an empty piece. Perhaps your start square is wrong?"),
+
+                _ => throw new Exception($"cannot set bitboard for unaccounted enum \"{pieceEnum}\".") // raised errors if not in place
             };
         }
 
@@ -319,7 +321,9 @@ namespace ChessBoard
                 Piece.WhiteRook   =>  White.Rooks = bitboard,
                 Piece.WhiteKing   =>  White.King = bitboard,
 
-                _ => throw new Exception($"invalid enum type - cannot set bitboard for enum \"{pieceEnum}\".")
+                Piece.Empty => throw new Exception($"cannot set bitboard for an empty piece enum."),
+                
+                _ => throw new Exception($"cannot set bitboard for unaccounted enum \"{pieceEnum}\".") // raised errors if not in place
             };
         }
 
@@ -412,9 +416,6 @@ namespace ChessBoard
                     break;
 
                 case MoveType.EnPassant:
-                    // Clear EP square (already been used)
-                    epSquare = 0;
-
                     // Operates like a normal move
                     pieceToMove = Piece.BlackPawn - SideToMove;
                     
@@ -423,14 +424,10 @@ namespace ChessBoard
                     bb ^= 1UL << move.src | 1UL << move.dst;
                     SetBitboardFromEnum(pieceToMove, bb);
 
-                    // Update board array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = pieceToMove;
-
                     // Get square of pawn to capture
                     int inFrontOfEPsquare = move.dst + (SideToMove == 1 ? -8 : 8);
 
-                    Console.WriteLine($"In front of EP square: {inFrontOfEPsquare}  |  Move: {move}");
+                    // Console.WriteLine($"In front of EP square: {inFrontOfEPsquare}  |  Move: {move}\nBoard:\n{this}");
                     
                     Piece opponentPawnType = BoardArray[inFrontOfEPsquare];
                     
@@ -444,8 +441,7 @@ namespace ChessBoard
                     {
                         throw new Exception(
                               $"cannot select empty bitboard.\n\nMove: {move}\nBoard:\n{this}\n\n"
-                            + $"Bitboards:\n{Display.StringifyBitboard(1UL << inFrontOfEPsquare)}"
-                            + $""
+                            + $"Bitboards:\n{Display.StringifyMultipleBitboards([1UL << inFrontOfEPsquare, epSquare])}"
                             + "\n\n"
                         );
                     }
@@ -453,7 +449,12 @@ namespace ChessBoard
                     SetBitboardFromEnum(opponentPawnType, opponentPawnBB);
 
                     // Remove pawn from board array
+                    BoardArray[move.src] = Piece.Empty;
+                    BoardArray[move.dst] = pieceToMove;
                     BoardArray[inFrontOfEPsquare] = Piece.Empty;
+
+                    // Clear EP square (already been used)
+                    epSquare = 0;
 
                     break;
                 
@@ -483,7 +484,7 @@ namespace ChessBoard
                     epSquare = 0;
 
                     // Get the king moving
-                    Piece kingToMove = Piece.BlackKing - SideToMove;
+                    Piece kingToMove = Piece.WhiteKing + SideToMove;
                     
                     // Reset castling rights depending on side
                     castlingRights ^= (byte)(SideToMove == 0 ? 0b1100 : 0b0011);
@@ -532,7 +533,7 @@ namespace ChessBoard
             boardHistory.Push(boardInfo);
             UpdatePinsAndCheckers();
 
-            Console.WriteLine($"Made move {move}.\nBoard:\n{this}");
+            // Console.WriteLine($"Made move {move}.\nBoard:\n{this}");
         }
 
         public void UndoMove()
@@ -580,17 +581,19 @@ namespace ChessBoard
 
                 case MoveType.EnPassant:
                     // Get whichever pawn type did the en-passant
-                    Piece pawnType = Piece.BlackPawn - SideToMove;
+                    Piece pawnType = Piece.WhitePawn + SideToMove;
                     
                     // Update bitboard of that piece
                     bb = GetBitboardFromEnum(pawnType);
                     bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
                     SetBitboardFromEnum(pawnType, bb);
 
-                    Piece opponentPawnType = Piece.WhitePawn + SideToMove;
+                    Piece opponentPawnType = Piece.BlackPawn - SideToMove;
 
                     // Get the square in front of the EP square (relative to the side moving)
                     int squarePawnWasTakenFrom = previousMove.dst + (SideToMove == 0 ? -8 : 8);
+
+                    // Console.WriteLine($"Undoing move {previousMove} - pawn was taken from square {squarePawnWasTakenFrom}");
 
                     // Update bitboard of opponent pawn type
                     // (replace the pawn that was captured)
@@ -807,6 +810,7 @@ namespace ChessBoard
         {
             List<Move> moves = [];
             
+            /*
             foreach (int position in PieceSet.BitIndexes(PlayerToMove.Rooks))
             {
                 Moves.GenerateRookMoves(
@@ -830,28 +834,33 @@ namespace ChessBoard
                     moveListToAddTo: moves
                 );
             }
+            */
 
-            foreach (int position in PieceSet.BitIndexes(PlayerToMove.Queens))
+            foreach (int position in PieceSet.BitIndexes(PlayerToMove.Queens | PlayerToMove.Rooks))
             {
                 Moves.GenerateRookMoves(
                     friendlyOccupancy: PlayerToMove.ALL(),
                     opponentOccupancy: OpponentToMove.ALL(),
                     square: position,
-                    pinmask: HV_pinmask,
-                    checkmask: checkmask,
-                    moveListToAddTo: moves
-                );
-
-                Moves.GenerateBishopMoves(
-                    friendlyOccupancy: PlayerToMove.ALL(),
-                    opponentOccupancy: OpponentToMove.ALL(),
-                    square: position,
-                    pinmask: D_pinmask,
+                    HV_pinmask: HV_pinmask,
+                    D_pinmask: D_pinmask,
                     checkmask: checkmask,
                     moveListToAddTo: moves
                 );
             }
 
+            foreach (int position in PieceSet.BitIndexes(PlayerToMove.Queens | PlayerToMove.Bishops))
+            {
+                Moves.GenerateBishopMoves(
+                    friendlyOccupancy: PlayerToMove.ALL(),
+                    opponentOccupancy: OpponentToMove.ALL(),
+                    square: position,
+                    HV_pinmask: HV_pinmask,
+                    D_pinmask: D_pinmask,
+                    checkmask: checkmask,
+                    moveListToAddTo: moves
+                );
+            }
 
             foreach (int position in PieceSet.BitIndexes(PlayerToMove.Knights))
             {

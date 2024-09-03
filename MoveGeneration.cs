@@ -541,7 +541,8 @@ namespace MoveGeneration
         public static void GenerateRookMoves(
             ulong friendlyOccupancy,
             ulong opponentOccupancy,
-            ulong pinmask,
+            ulong D_pinmask,
+            ulong HV_pinmask,
             ulong checkmask,
             int square,
             List<Move> moveListToAddTo
@@ -551,18 +552,34 @@ namespace MoveGeneration
 
             moveBitmask &= checkmask;
             
-            if ((pinmask & 1UL << square) > 0) moveBitmask &= pinmask;
+            // Cannot move if on diagonal pinmask
+            if ((D_pinmask & 1UL << square) > 0) return;
+            
+            // Can move on an orthogonal pinmask, mask moves against pinmask
+            if ((HV_pinmask & 1UL << square) > 0) moveBitmask &= HV_pinmask;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
 
-        public static void GenerateBishopMoves(ulong friendlyOccupancy, ulong opponentOccupancy, ulong pinmask, ulong checkmask, int square, List<Move> moveListToAddTo)
+        public static void GenerateBishopMoves(
+            ulong friendlyOccupancy,
+            ulong opponentOccupancy,
+            ulong D_pinmask,
+            ulong HV_pinmask,
+            ulong checkmask,
+            int square,
+            List<Move> moveListToAddTo
+        )
         {
             ulong moveBitmask = GetBishopMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
 
             moveBitmask &= checkmask;
             
-            if ((pinmask & 1UL << square) > 0) moveBitmask &= pinmask;
+            // Cannot move if on orthogonal pinmask
+            if ((HV_pinmask & 1UL << square) > 0) return;
+            
+            // Can move on a diagonal pinmask, mask moves against pinmask
+            if ((D_pinmask & 1UL << square) > 0) moveBitmask &= D_pinmask;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -582,7 +599,7 @@ namespace MoveGeneration
             ulong friendlyOccupancy = friendlyPieces.ALL();
             ulong opponentOccupancy = opponentPieces.ALL();
 
-            ulong boardMask = friendlyOccupancy | opponentOccupancy;
+            ulong boardMask = (friendlyOccupancy | opponentOccupancy) & ~friendlyPieces.King;
 
             ulong opponentAttacks = opponentPieces.AttackingBitmask(boardMask);
 
@@ -641,11 +658,8 @@ namespace MoveGeneration
 
             ulong pawnBitboardForAttacks = pawnBitboard & ~HV_pinmask;
 
-            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboardForAttacks) << 7;
-            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboardForAttacks) << 9;
-
-            moves.LeftAttacks &= ~whiteMask;
-            moves.RightAttacks &= ~whiteMask;
+            moves.LeftAttacks = blackMask & (~BoardFile.A & pawnBitboardForAttacks) << 7;
+            moves.RightAttacks = blackMask & (~BoardFile.H & pawnBitboardForAttacks) << 9;
 
             moves.LeftAttacks &= checkmask;
             moves.RightAttacks &= checkmask;
@@ -902,6 +916,38 @@ namespace MoveGeneration
 
                 moveListToAddTo.Add(move);
             }
+        }
+    }
+}
+
+namespace Castling
+{
+    public static class CastlingRights
+    {
+        private static ulong WhiteQSC = 0b00001110UL;
+        private static ulong WhiteKSC = 0b01100000UL;
+        private static ulong BlackKSC = 0b00001110UL << 56;
+        private static ulong BlackQSC = 0b01100000UL << 56;
+
+        public static bool CanCastle(ulong castlingRegion, PieceSet friendlyPieces, PieceSet opponentPieces)
+        {
+            ulong boardMask = friendlyPieces.ALL() | opponentPieces.ALL();
+            ulong opponentAttacks = opponentPieces.AttackingBitmask(boardMask);
+
+            return (opponentAttacks & castlingRegion) == 0
+                && (boardMask       & castlingRegion) == 0;
+        }
+
+        public static bool CanCastleQueenside(Colour sideToMove, PieceSet friendlyPieces, PieceSet opponentPieces)
+        {
+            // Console.WriteLine("Checked for castling queenside.");
+            return CanCastle(sideToMove == Colour.White ? WhiteQSC : BlackQSC, friendlyPieces, opponentPieces);
+        }
+
+        public static bool CanCastleKingside(Colour sideToMove, PieceSet friendlyPieces, PieceSet opponentPieces)
+        {
+            // Console.WriteLine("Checked for castling kingside.");
+            return CanCastle(sideToMove == Colour.White ? WhiteKSC : BlackKSC, friendlyPieces, opponentPieces);
         }
     }
 }

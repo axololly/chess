@@ -1,8 +1,8 @@
 using ChessBoard;
 using MoveGeneration;
 using Utilities;
-using System.Threading;
 using System.Numerics;
+using Bitboards;
 
 class Program
 {
@@ -70,24 +70,29 @@ class Program
 
         Console.WriteLine("Finished outputting perft test.");
         Console.WriteLine($"Perft test at depth {depth}: {total} moves found.");
+
+        Console.WriteLine();
+        Console.WriteLine($"Board:\n{board}");
     }
 
     static void Main()
     {
         Move[] moves = [
-            Move.FromString("a2a4", MoveType.PawnDoublePush),
-            Move.FromString("b8a6"),
-            Move.FromString("a4a5"),
-            // Move.FromString("c7c5", MoveType.PawnDoublePush)
+            Move.FromString("b2b4", MoveType.PawnDoublePush),
+            Move.FromString("c7c5", MoveType.PawnDoublePush),
+            Move.FromString("d2d4", MoveType.PawnDoublePush),
+            Move.FromString("d8a5")
         ];
+        int depth = 5;
 
-        foreach (Move move in moves) board.MakeMove(move);
-
-        Console.WriteLine($"FEN: {board.GetFEN()}");
-        Console.WriteLine($"Next moves: [{string.Join(", ", board.GenerateLegalMoves())}] ({board.GenerateLegalMoves().Count} moves)");
-        Console.WriteLine();
-
-        OutputPerftTest(2, "compare moves/my results.yml");        
+        foreach (Move m in moves)
+        {
+            board.MakeMove(m);
+            depth--;
+        }
+        
+        OutputPerftTest(depth, "compare moves/my results.yml");
+        // Display.PrintMultipleBitboards([board.checkmask]);
     }
 
     // public static Board board = new(File.ReadAllText("board.fen"));
