@@ -35,9 +35,11 @@ namespace Utilities
             Console.WriteLine(StringifyBitboard(bitboard));
         }
 
-        public static void PrintMultipleBitboards(ulong[] bitboards)
+        public static string StringifyMultipleBitboards(ulong[] bitboards)
         {
             List<string[]> boardsToPrint = [];
+            
+            string finalResult = "";
 
             foreach (ulong bitboard in bitboards)
             {
@@ -73,8 +75,15 @@ namespace Utilities
                 
                 string lineToPrint = string.Join("    ", linesToPrint);
 
-                Console.WriteLine(lineToPrint);
+                finalResult += lineToPrint + (line < 7 ? "\n" : "");
             }
+
+            return finalResult;
+        }
+
+        public static void PrintMultipleBitboards(ulong[] bitboards)
+        {
+            Console.WriteLine(StringifyMultipleBitboards(bitboards));
         }
     }
 

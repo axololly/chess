@@ -538,24 +538,32 @@ namespace MoveGeneration
         }
 
 
-        public static void GenerateRookMoves(ulong friendlyOccupancy, ulong opponentOccupancy, int square, List<Move> moveListToAddTo)
+        public static void GenerateRookMoves(
+            ulong friendlyOccupancy,
+            ulong opponentOccupancy,
+            ulong pinmask,
+            ulong checkmask,
+            int square,
+            List<Move> moveListToAddTo
+        )
         {
             ulong moveBitmask = GetRookMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
+
+            moveBitmask &= checkmask;
+            
+            if ((pinmask & 1UL << square) > 0) moveBitmask &= pinmask;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
 
-        public static void GenerateBishopMoves(ulong friendlyOccupancy, ulong opponentOccupancy, int square, List<Move> moveListToAddTo)
+        public static void GenerateBishopMoves(ulong friendlyOccupancy, ulong opponentOccupancy, ulong pinmask, ulong checkmask, int square, List<Move> moveListToAddTo)
         {
             ulong moveBitmask = GetBishopMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
+
+            moveBitmask &= checkmask;
             
-            GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
-        }
-
-        public static void GenerateQueenMoves(ulong friendlyOccupancy, ulong opponentOccupancy, int square, List<Move> moveListToAddTo)
-        {
-            ulong moveBitmask = GetQueenMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
-
+            if ((pinmask & 1UL << square) > 0) moveBitmask &= pinmask;
+            
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
         
@@ -564,7 +572,12 @@ namespace MoveGeneration
             return ~occupancy & fmt.KING_MOVES_TABLE[square];
         }
 
-        public static void GenerateKingMoves(PieceSet friendlyPieces, PieceSet opponentPieces, int square, List<Move> moveListToAddTo)
+        public static void GenerateKingMoves(
+            PieceSet friendlyPieces,
+            PieceSet opponentPieces,
+            int square,
+            List<Move> moveListToAddTo
+        )
         {
             ulong friendlyOccupancy = friendlyPieces.ALL();
             ulong opponentOccupancy = opponentPieces.ALL();
@@ -583,9 +596,19 @@ namespace MoveGeneration
             return ~friendlyOccupancy & fmt.KNIGHT_MOVES_TABLE[square];
         }
 
-        public static void GenerateKnightMoves(ulong friendlyOccupancy, int square, List<Move> moveListToAddTo)
+        public static void GenerateKnightMoves(
+            ulong friendlyOccupancy,
+            int square,
+            ulong pinmask,
+            ulong checkmask,
+            List<Move> moveListToAddTo
+        )
         {
             ulong moveBitmask = GetKnightMoveBitmask(friendlyOccupancy, square);
+
+            moveBitmask &= checkmask;
+
+            if ((pinmask & 1UL << square) != 0) moveBitmask &= pinmask;
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -600,7 +623,15 @@ namespace MoveGeneration
         }
 
         
-        public static PawnMoves GetWhitePawnMoves(ulong whiteMask, ulong blackMask, ulong pawnBitboard, ulong epSquareBitboard)
+        public static PawnMoves GetWhitePawnMoves(
+            ulong whiteMask,
+            ulong blackMask,
+            ulong pawnBitboard,
+            ulong epSquareBitboard,
+            ulong HV_pinmask,
+            ulong D_pinmask,
+            ulong checkmask
+        )
         {
             PawnMoves moves;
 
@@ -608,42 +639,124 @@ namespace MoveGeneration
 
             ulong occupancy = whiteMask | blackMask;
 
-            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboard) << 7;
-            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboard) << 9;
+            ulong pawnBitboardForAttacks = pawnBitboard & ~HV_pinmask;
+
+            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboardForAttacks) << 7;
+            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboardForAttacks) << 9;
 
             moves.LeftAttacks &= ~whiteMask;
             moves.RightAttacks &= ~whiteMask;
 
-            moves.SinglePushForward = ~occupancy & (pawnBitboard << 8);
+            moves.LeftAttacks &= checkmask;
+            moves.RightAttacks &= checkmask;
+
+            ulong pawnBitboardForPushes = pawnBitboard & ~D_pinmask;
+
+            moves.SinglePushForward = ~occupancy & (pawnBitboardForPushes << 8);
             moves.DoublePushForward = ~occupancy & (moves.SinglePushForward & BoardRank.Third) << 8;
+
+            moves.SinglePushForward &= checkmask;
+            moves.DoublePushForward &= checkmask;
 
             return moves;
         }
 
-        public static PawnMoves GetBlackPawnMoves(ulong blackMask, ulong whiteMask, ulong pawnBitboard, ulong epSquareBitboard)
+        public static PawnMoves GetBlackPawnMoves(
+            ulong blackMask,
+            ulong whiteMask,
+            ulong pawnBitboard,
+            ulong epSquareBitboard,
+            ulong HV_pinmask,
+            ulong D_pinmask,
+            ulong checkmask
+        )
         {
             PawnMoves moves;
+
+            ulong pawnBitboardForAttacks = pawnBitboard & ~HV_pinmask;
 
             whiteMask |= epSquareBitboard;
 
             ulong occupancy = whiteMask | blackMask;
 
-            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboard) >> 9;
-            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboard) >> 7;
+            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboardForAttacks) >> 9;
+            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboardForAttacks) >> 7;
 
             moves.LeftAttacks &= ~blackMask;
             moves.RightAttacks &= ~blackMask;
 
-            moves.SinglePushForward = ~occupancy & (pawnBitboard >> 8);
+            moves.LeftAttacks &= checkmask;
+            moves.RightAttacks &= checkmask;
+
+            ulong pawnBitboardForPushes = pawnBitboard & ~D_pinmask;
+
+            moves.SinglePushForward = ~occupancy & (pawnBitboardForPushes >> 8);
             moves.DoublePushForward = ~occupancy & (moves.SinglePushForward & BoardRank.Sixth) >> 8;
+
+            moves.SinglePushForward &= checkmask;
+            moves.DoublePushForward &= checkmask;
 
             return moves;
         }
 
 
-        public static void GenerateWhitePawnMoves(ulong whiteMask, ulong blackMask, ulong pawnBitboard, ulong epSquareBitboard, List<Move> moveListToAddTo)
+        public static PawnMoves GetPawnMoves(
+            ulong friendlyOccupancy,
+            ulong opponentOccupancy,
+            ulong pawnBitboard,
+            ulong epSquareBitboard,
+            ulong HV_pinmask,
+            ulong D_pinmask,
+            ulong checkmask,
+            Colour side
+        )
+        {            
+            if (side == Colour.White)
+            {
+                return GetWhitePawnMoves(
+                    whiteMask: friendlyOccupancy,
+                    blackMask: opponentOccupancy,
+                    pawnBitboard: pawnBitboard,
+                    epSquareBitboard: epSquareBitboard,
+                    HV_pinmask: HV_pinmask,
+                    D_pinmask: D_pinmask,
+                    checkmask: checkmask
+                );
+            }
+            else
+            {
+                return GetBlackPawnMoves(
+                    blackMask: friendlyOccupancy,
+                    whiteMask: opponentOccupancy,
+                    pawnBitboard: pawnBitboard,
+                    epSquareBitboard: epSquareBitboard,
+                    HV_pinmask: HV_pinmask,
+                    D_pinmask: D_pinmask,
+                    checkmask: checkmask
+                );
+            }
+        }
+
+        public static void GenerateWhitePawnMoves(
+            ulong whiteMask,
+            ulong blackMask,
+            ulong pawnBitboard,
+            ulong epSquareBitboard,
+            ulong HV_pinmask,
+            ulong D_pinmask,
+            ulong checkmask,
+            List<Move> moveListToAddTo
+        )
         {
-            PawnMoves pawnMoves = GetWhitePawnMoves(whiteMask, blackMask, pawnBitboard, epSquareBitboard);
+            PawnMoves pawnMoves = GetWhitePawnMoves(
+                whiteMask: whiteMask,
+                blackMask: blackMask,
+                pawnBitboard: pawnBitboard,
+                epSquareBitboard: epSquareBitboard,
+                HV_pinmask: HV_pinmask,
+                D_pinmask: D_pinmask,
+                checkmask: checkmask
+            );
 
             // Exclude the en-passant bitboard originally to take down all normal moves
             GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~epSquareBitboard, 7, moveListToAddTo);
@@ -657,9 +770,26 @@ namespace MoveGeneration
             GenerateMovesWithOffset(pawnMoves.DoublePushForward, 16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
         }
 
-        public static void GenerateBlackPawnMoves(ulong whiteMask, ulong blackMask, ulong pawnBitboard, ulong epSquareBitboard, List<Move> moveListToAddTo)
+        public static void GenerateBlackPawnMoves(
+            ulong whiteMask,
+            ulong blackMask,
+            ulong pawnBitboard,
+            ulong epSquareBitboard,
+            ulong HV_pinmask,
+            ulong D_pinmask,
+            ulong checkmask,
+            List<Move> moveListToAddTo
+        )
         {
-            PawnMoves pawnMoves = GetBlackPawnMoves(whiteMask, blackMask, pawnBitboard, epSquareBitboard);
+            PawnMoves pawnMoves = GetBlackPawnMoves(
+                whiteMask: whiteMask,
+                blackMask: blackMask,
+                pawnBitboard: pawnBitboard,
+                epSquareBitboard: epSquareBitboard,
+                HV_pinmask: HV_pinmask,
+                D_pinmask: D_pinmask,
+                checkmask: checkmask
+            );
 
             // Exclude the en-passant bitboard originally to take down all normal moves
             GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~epSquareBitboard, -9, moveListToAddTo);
@@ -671,6 +801,45 @@ namespace MoveGeneration
 
             GenerateMovesWithOffset(pawnMoves.SinglePushForward, -8, moveListToAddTo);
             GenerateMovesWithOffset(pawnMoves.DoublePushForward, -16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
+        }
+
+        public static void GeneratePawnMoves(
+            PieceSet friendlyPieces,
+            PieceSet opponentPieces,
+            ulong epSquareBitboard,
+            ulong HV_pinmask,
+            ulong D_pinmask,
+            ulong checkmask,
+            List<Move> moveListToAddTo,
+            Colour side
+        )
+        {
+            if (side == Colour.White)
+            {
+                GenerateWhitePawnMoves(
+                    whiteMask: friendlyPieces.ALL(),
+                    blackMask: opponentPieces.ALL(),
+                    pawnBitboard: friendlyPieces.Pawns,
+                    epSquareBitboard: epSquareBitboard,
+                    HV_pinmask: HV_pinmask,
+                    D_pinmask: D_pinmask,
+                    checkmask: checkmask,
+                    moveListToAddTo: moveListToAddTo
+                );
+            }
+            else
+            {
+                GenerateBlackPawnMoves(
+                    whiteMask: opponentPieces.ALL(),
+                    blackMask: friendlyPieces.ALL(),
+                    pawnBitboard: friendlyPieces.Pawns,
+                    epSquareBitboard: epSquareBitboard,
+                    HV_pinmask: HV_pinmask,
+                    D_pinmask: D_pinmask,
+                    checkmask: checkmask,
+                    moveListToAddTo: moveListToAddTo
+                );
+            }
         }
 
         public static void GenerateCastlingMoves(
@@ -692,17 +861,17 @@ namespace MoveGeneration
                     /*
                     1 => 6, 2 => 62
 
-                    . . .  BK . 2 .
+                    . . . . k . 2 .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
-                    . . .  WK . 1 .
+                    . . . . K . 1 .
                     */
-                    src = sideToMove == Colour.White ? 5 : 60,
-                    dst = sideToMove == Colour.White ? 7 : 62,
+                    src = sideToMove == Colour.White ? 4 : 60,
+                    dst = sideToMove == Colour.White ? 6 : 62,
                     type = MoveType.Castling
                 };
 
@@ -717,17 +886,17 @@ namespace MoveGeneration
                     /*
                     1 => 5, 2 => 57
 
-                    . 2 .  BK . . .
+                    . . 2 . k . . .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
                     . . . . . . . .
-                    . 1 .  WK . . .
+                    . . 1 . K . . .
                     */
-                    src = sideToMove == Colour.White ? 5 : 60,
-                    dst = sideToMove == Colour.White ? 1 : 57,
+                    src = sideToMove == Colour.White ? 4 : 60,
+                    dst = sideToMove == Colour.White ? 2 : 58,
                     type = MoveType.Castling
                 };
 

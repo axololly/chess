@@ -2,6 +2,7 @@ using ChessBoard;
 using MoveGeneration;
 using Utilities;
 using System.Threading;
+using System.Numerics;
 
 class Program
 {
@@ -13,10 +14,8 @@ class Program
 
         int count = 0;
 
-        for (int i = 0; i < nextMoves.Count; i++)
+        foreach (Move next in nextMoves)
         {
-            Move next = nextMoves[i];
-
             board.MakeMove(next);
             count += perftTest(depth - 1);
             board.UndoMove();
@@ -25,33 +24,27 @@ class Program
         return count;
     }
 
-    static void MoveByMovePerft(int depth)
+    static int MoveByMovePerft(int depth)
     {
-        Console.WriteLine(board);
-        Console.WriteLine();
+        var nextMoves = board.GenerateLegalMoves();
 
         int total = 0;
 
-        var nextMoves = board.GenerateLegalMoves();
-
-        for (int i= 0; i < nextMoves.Count; i++)
+        foreach (Move next in nextMoves)
         {
-            Move next = nextMoves[i];
-
             board.MakeMove(next);
 
             int nodes = perftTest(depth - 1);
             total += nodes;
             
-            // Console.WriteLine($"Move: {next}  |  Explored {nodes} nodes.");
             Console.WriteLine($"{next} - {nodes}");
-            // Console.WriteLine($"Board after:\n{board}\n");
+            // Console.WriteLine($"Board:\n{board}");
+            // Console.WriteLine();
 
             board.UndoMove();
         }
 
-        Console.WriteLine();
-        Console.WriteLine($"Perft test at depth {depth}: {total} moves found.");
+        return total;
     }
 
     static void GlobalPerft(int stopAtDepth)
@@ -62,29 +55,41 @@ class Program
         }
     }
 
-    static void OutputPerftTest(int depth)
+    static void OutputPerftTest(int depth, string outputPath = "output.txt")
     {
-        FileStream fs = new("output.txt", FileMode.Create, FileAccess.Write);
+        TextWriter tmp = Console.Out;
+        FileStream fs = new(outputPath, FileMode.Create, FileAccess.Write);
         StreamWriter sw = new(fs);
         Console.SetOut(sw);
-        
-        Console.WriteLine("Start:");
 
-        MoveByMovePerft(depth);
-
-        Console.WriteLine();
-
-        Console.WriteLine("End:");
-        Console.WriteLine(board);
+        int total = MoveByMovePerft(depth);
 
         sw.Close();
+
+        Console.SetOut(tmp);
+
+        Console.WriteLine("Finished outputting perft test.");
+        Console.WriteLine($"Perft test at depth {depth}: {total} moves found.");
     }
 
     static void Main()
     {
-        // OutputPerftTest(1);
-        MoveByMovePerft(3);
+        Move[] moves = [
+            Move.FromString("a2a4", MoveType.PawnDoublePush),
+            Move.FromString("b8a6"),
+            Move.FromString("a4a5"),
+            // Move.FromString("c7c5", MoveType.PawnDoublePush)
+        ];
+
+        foreach (Move move in moves) board.MakeMove(move);
+
+        Console.WriteLine($"FEN: {board.GetFEN()}");
+        Console.WriteLine($"Next moves: [{string.Join(", ", board.GenerateLegalMoves())}] ({board.GenerateLegalMoves().Count} moves)");
+        Console.WriteLine();
+
+        OutputPerftTest(2, "compare moves/my results.yml");        
     }
 
+    // public static Board board = new(File.ReadAllText("board.fen"));
     public static Board board = new();
 }
