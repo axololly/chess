@@ -92,6 +92,18 @@ A bitboard representing all the pieces on the board could look like this:
 . . . 1 . . . .
 ```
 
+And a bitboard for just the white pieces can look like this:
+```yml
+. . . . . . . .
+. . 1 . . . . 1
+. . . 1 . . . .
+. . . . . . 1 .
+1 . . . . . . 1
+. . 1 . . 1 . .
+. . . . 1 . . .
+. . . . . . . .
+```
+
 For context, I'm using what's known as a Little Endian format for my bitboards. The positions of each bit are laid out like this:
 ```yml
 56 57 58 59 60 61 62 63

@@ -654,23 +654,36 @@ namespace MoveGeneration
 
             blackMask |= epSquareBitboard;
 
-            ulong occupancy = whiteMask | blackMask;
+            ulong boardMask = whiteMask | blackMask;
+            ulong noHVpawns = pawnBitboard & ~HV_pinmask;
+            
+            ulong diagPinned = noHVpawns & D_pinmask;
+            ulong diagUnpinned = noHVpawns & ~D_pinmask;
 
-            ulong pawnBitboardForAttacks = pawnBitboard & ~HV_pinmask;
+            ulong pinnedLeftAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.A) << 7);
+            ulong pinnedRightAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.H) << 9);
 
-            moves.LeftAttacks = blackMask & (~BoardFile.A & pawnBitboardForAttacks) << 7;
-            moves.RightAttacks = blackMask & (~BoardFile.H & pawnBitboardForAttacks) << 9;
+            ulong regularLeftAttacks = blackMask & ((diagUnpinned & ~BoardFile.A) << 7);
+            ulong regularRightAttacks = blackMask & ((diagUnpinned & ~BoardFile.H) << 9);
 
-            moves.LeftAttacks &= checkmask;
-            moves.RightAttacks &= checkmask;
+            moves.LeftAttacks = (pinnedLeftAttacks | regularLeftAttacks) & checkmask;
+            moves.RightAttacks = (pinnedRightAttacks | regularRightAttacks) & checkmask;
 
-            ulong pawnBitboardForPushes = pawnBitboard & ~D_pinmask;
+            // -----------------------------------------------------------------------------
+            
+            ulong noDpawns = pawnBitboard & ~D_pinmask;
 
-            moves.SinglePushForward = ~occupancy & (pawnBitboardForPushes << 8);
-            moves.DoublePushForward = ~occupancy & (moves.SinglePushForward & BoardRank.Third) << 8;
+            ulong HVpinnedPawns = noDpawns & HV_pinmask;
+            ulong HVunpinnedPawns = noDpawns & ~HV_pinmask;
 
-            moves.SinglePushForward &= checkmask;
-            moves.DoublePushForward &= checkmask;
+            ulong normalSinglePushes = ~boardMask & (HVunpinnedPawns << 8);
+            ulong normalDoublePushes = ~boardMask & ((BoardRank.Third & normalSinglePushes) << 8);
+
+            ulong pinnedSinglePushes = ~boardMask & (HVpinnedPawns << 8) & HV_pinmask;
+            ulong pinnedDoublePushes = ~boardMask & ((BoardRank.Third & pinnedSinglePushes) << 8) & HV_pinmask;
+
+            moves.SinglePushForward = (pinnedSinglePushes | normalSinglePushes) & checkmask;
+            moves.DoublePushForward = (pinnedDoublePushes | normalDoublePushes) & checkmask;
 
             return moves;
         }
@@ -687,28 +700,38 @@ namespace MoveGeneration
         {
             PawnMoves moves;
 
-            ulong pawnBitboardForAttacks = pawnBitboard & ~HV_pinmask;
-
             whiteMask |= epSquareBitboard;
 
-            ulong occupancy = whiteMask | blackMask;
+            ulong boardMask = whiteMask | blackMask;
+            ulong noHVpawns = pawnBitboard & ~HV_pinmask;
+            
+            ulong diagPinned = noHVpawns & D_pinmask;
+            ulong diagUnpinned = noHVpawns & ~D_pinmask;
 
-            moves.LeftAttacks = occupancy & (~BoardFile.A & pawnBitboardForAttacks) >> 9;
-            moves.RightAttacks = occupancy & (~BoardFile.H & pawnBitboardForAttacks) >> 7;
+            ulong pinnedLeftAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.A) >> 9); // add checks to not shift pawns on edges
+            ulong pinnedRightAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.H) >> 7);
 
-            moves.LeftAttacks &= ~blackMask;
-            moves.RightAttacks &= ~blackMask;
+            ulong regularLeftAttacks = whiteMask & ((diagUnpinned & ~BoardFile.A) >> 9);
+            ulong regularRightAttacks = whiteMask & ((diagUnpinned & ~BoardFile.H) >> 7);
 
-            moves.LeftAttacks &= checkmask;
-            moves.RightAttacks &= checkmask;
+            moves.LeftAttacks = (pinnedLeftAttacks | regularLeftAttacks) & checkmask;
+            moves.RightAttacks = (pinnedRightAttacks | regularRightAttacks) & checkmask;
 
-            ulong pawnBitboardForPushes = pawnBitboard & ~D_pinmask;
+            // -----------------------------------------------------------------------------
+            
+            ulong noDpawns = pawnBitboard & ~D_pinmask;
 
-            moves.SinglePushForward = ~occupancy & (pawnBitboardForPushes >> 8);
-            moves.DoublePushForward = ~occupancy & (moves.SinglePushForward & BoardRank.Sixth) >> 8;
+            ulong HVpinnedPawns = noDpawns & HV_pinmask;
+            ulong HVunpinnedPawns = noDpawns & ~HV_pinmask;
 
-            moves.SinglePushForward &= checkmask;
-            moves.DoublePushForward &= checkmask;
+            ulong normalSinglePushes = ~boardMask & (HVunpinnedPawns >> 8);
+            ulong normalDoublePushes = ~boardMask & ((BoardRank.Sixth & normalSinglePushes) >> 8);
+
+            ulong pinnedSinglePushes = ~boardMask & (HVpinnedPawns >> 8) & HV_pinmask;
+            ulong pinnedDoublePushes = ~boardMask & ((BoardRank.Sixth & pinnedSinglePushes) >> 8) & HV_pinmask;
+
+            moves.SinglePushForward = (pinnedSinglePushes | normalSinglePushes) & checkmask;
+            moves.DoublePushForward = (pinnedDoublePushes | normalDoublePushes) & checkmask;
 
             return moves;
         }

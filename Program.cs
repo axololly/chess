@@ -3,6 +3,7 @@ using MoveGeneration;
 using Utilities;
 using System.Numerics;
 using Bitboards;
+using System.Diagnostics;
 
 class Program
 {
@@ -38,8 +39,6 @@ class Program
             total += nodes;
             
             Console.WriteLine($"{next} - {nodes}");
-            // Console.WriteLine($"Board:\n{board}");
-            // Console.WriteLine();
 
             board.UndoMove();
         }
@@ -62,7 +61,13 @@ class Program
         StreamWriter sw = new(fs);
         Console.SetOut(sw);
 
+        var watch = Stopwatch.StartNew();
+        
         int total = MoveByMovePerft(depth);
+        
+        watch.Stop();
+
+        double time = watch.ElapsedMilliseconds; // get time in seconds
 
         sw.Close();
 
@@ -70,6 +75,12 @@ class Program
 
         Console.WriteLine("Finished outputting perft test.");
         Console.WriteLine($"Perft test at depth {depth}: {total} moves found.");
+        Console.WriteLine();
+        
+        Console.WriteLine("Statistics:\n-----------\n");
+        Console.WriteLine($"Time elapsed: {time}ms.");
+        Console.WriteLine($"Moves played: {total}.");
+        Console.WriteLine($"Nodes/second: {(int)(total / time * 1000)}.");
 
         Console.WriteLine();
         Console.WriteLine($"Board:\n{board}");
@@ -78,12 +89,13 @@ class Program
     static void Main()
     {
         Move[] moves = [
-            Move.FromString("b2b4", MoveType.PawnDoublePush),
-            Move.FromString("c7c5", MoveType.PawnDoublePush),
-            Move.FromString("d2d4", MoveType.PawnDoublePush),
-            Move.FromString("d8a5")
+            /*
+            Move.FromString("e2e3"),
+            Move.FromString("e7e6"),
+            Move.FromString("d1h5")
+            */
         ];
-        int depth = 5;
+        int depth = 6;
 
         foreach (Move m in moves)
         {
@@ -92,9 +104,26 @@ class Program
         }
         
         OutputPerftTest(depth, "compare moves/my results.yml");
-        // Display.PrintMultipleBitboards([board.checkmask]);
+
+        /*
+        var P = Moves.GetBlackPawnMoves(
+            board.White.ALL(),
+            board.Black.ALL(),
+            board.Black.Pawns,
+            board.epSquare,
+            board.HV_pinmask,
+            board.D_pinmask,
+            board.checkmask
+        );
+        
+        Console.WriteLine($"Board:\n{board}\n\nBitboards:");
+        Display.PrintMultipleBitboards([
+            board.D_pinmask,
+            board.HV_pinmask,
+            P.SinglePushForward,
+        ]);
+        */
     }
 
-    // public static Board board = new(File.ReadAllText("board.fen"));
     public static Board board = new();
 }

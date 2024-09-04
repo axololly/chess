@@ -128,6 +128,8 @@ namespace ChessBoard
         public ulong HV_pinmask;
         public ulong D_pinmask;
         public ulong checkmask;
+
+        public ulong boardMask { get { return White.ALL() | Black.ALL(); } }
         
         public int SideToMove { get { return moveCounter & 1; } }
         public Colour ColourToMove { get { return (Colour)SideToMove; } }
@@ -383,8 +385,9 @@ namespace ChessBoard
                     catch
                     {
                         throw new Exception(
-                              $"cannot select empty bitboard.\n\nMove: {move}\nBoard:\n{this}\n\n"
-                            + $"Bitboards:\n{Display.StringifyMultipleBitboards([PlayerToMove.Pawns, epSquare, 1UL << move.src, 1UL << move.dst])}"
+                              $"cannot select empty bitboard.\n\nMove: {move} (Stack: [{string.Join(", ", moveHistory)}]\n"
+                            + $"Board:\n{this}\n\n"
+                            // + $"Bitboards:\n{Display.StringifyMultipleBitboards([])}"
                             + "\n\n"
                         );
                     }
@@ -699,8 +702,6 @@ namespace ChessBoard
         {
             PieceSet victim = aggressor == White ? Black : White;
 
-            ulong boardMask = aggressor.ALL() | victim.ALL();
-
             ulong attackers = 0;
 
             // Check for enemy knights
@@ -744,8 +745,6 @@ namespace ChessBoard
         public bool IsSquareAttacked(int square, PieceSet aggressor)
         {
             PieceSet victim = aggressor == White ? Black : White;
-
-            ulong boardMask = aggressor.ALL() | victim.ALL();
 
             bool doesIntersect(ulong bb1, ulong bb2) { return (bb1 & bb2) != 0; }
 
@@ -809,32 +808,6 @@ namespace ChessBoard
         public List<Move> GenerateLegalMoves()
         {
             List<Move> moves = [];
-            
-            /*
-            foreach (int position in PieceSet.BitIndexes(PlayerToMove.Rooks))
-            {
-                Moves.GenerateRookMoves(
-                    friendlyOccupancy: PlayerToMove.ALL(),
-                    opponentOccupancy: OpponentToMove.ALL(),
-                    square: position,
-                    pinmask: HV_pinmask,
-                    checkmask: checkmask,
-                    moveListToAddTo: moves
-                );
-            }
-
-            foreach (int position in PieceSet.BitIndexes(PlayerToMove.Bishops))
-            {
-                Moves.GenerateBishopMoves(
-                    friendlyOccupancy: PlayerToMove.ALL(),
-                    opponentOccupancy: OpponentToMove.ALL(),
-                    square: position,
-                    pinmask: D_pinmask,
-                    checkmask: checkmask,
-                    moveListToAddTo: moves
-                );
-            }
-            */
 
             foreach (int position in PieceSet.BitIndexes(PlayerToMove.Queens | PlayerToMove.Rooks))
             {
