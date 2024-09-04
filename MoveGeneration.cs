@@ -583,11 +583,6 @@ namespace MoveGeneration
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
-        
-        public static ulong GetKingMoveBitmask(ulong occupancy, int square)
-        {
-            return ~occupancy & fmt.KING_MOVES_TABLE[square];
-        }
 
         public static void GenerateKingMoves(
             PieceSet friendlyPieces,
@@ -596,14 +591,15 @@ namespace MoveGeneration
             List<Move> moveListToAddTo
         )
         {
-            ulong friendlyOccupancy = friendlyPieces.ALL();
-            ulong opponentOccupancy = opponentPieces.ALL();
+            ulong friendlyOccupancy = friendlyPieces.mask;
 
-            ulong boardMask = (friendlyOccupancy | opponentOccupancy) & ~friendlyPieces.King;
+            ulong opponentAttacks = opponentPieces.AttackingBitmask(friendlyOccupancy ^ friendlyPieces.King);
 
-            ulong opponentAttacks = opponentPieces.AttackingBitmask(boardMask);
+            ulong moveBitmask = fmt.KING_MOVES_TABLE[square]; // table entry
 
-            ulong moveBitmask = GetKingMoveBitmask(boardMask, square) & ~friendlyOccupancy & ~opponentAttacks;
+            moveBitmask &= ~friendlyOccupancy; // exclude friendly pieces
+            moveBitmask &= ~opponentAttacks; // exclude opponent attack rays
+            moveBitmask &= ~opponentPieces.ProtectedBitmask(friendlyOccupancy); // exclude opponent protected pieces
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -854,8 +850,8 @@ namespace MoveGeneration
             if (side == Colour.White)
             {
                 GenerateWhitePawnMoves(
-                    whiteMask: friendlyPieces.ALL(),
-                    blackMask: opponentPieces.ALL(),
+                    whiteMask: friendlyPieces.mask,
+                    blackMask: opponentPieces.mask,
                     pawnBitboard: friendlyPieces.Pawns,
                     epSquareBitboard: epSquareBitboard,
                     HV_pinmask: HV_pinmask,
@@ -867,8 +863,8 @@ namespace MoveGeneration
             else
             {
                 GenerateBlackPawnMoves(
-                    whiteMask: opponentPieces.ALL(),
-                    blackMask: friendlyPieces.ALL(),
+                    whiteMask: opponentPieces.mask,
+                    blackMask: friendlyPieces.mask,
                     pawnBitboard: friendlyPieces.Pawns,
                     epSquareBitboard: epSquareBitboard,
                     HV_pinmask: HV_pinmask,
@@ -954,8 +950,8 @@ namespace Castling
 
         public static bool CanCastle(ulong castlingRegion, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
-            ulong boardMask = friendlyPieces.ALL() | opponentPieces.ALL();
-            ulong opponentAttacks = opponentPieces.AttackingBitmask(boardMask);
+            ulong boardMask = friendlyPieces.mask | opponentPieces.mask;
+            ulong opponentAttacks = opponentPieces.AttackingBitmask(friendlyPieces.mask);
 
             return (opponentAttacks & castlingRegion) == 0
                 && (boardMask       & castlingRegion) == 0;
@@ -963,13 +959,11 @@ namespace Castling
 
         public static bool CanCastleQueenside(Colour sideToMove, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
-            // Console.WriteLine("Checked for castling queenside.");
             return CanCastle(sideToMove == Colour.White ? WhiteQSC : BlackQSC, friendlyPieces, opponentPieces);
         }
 
         public static bool CanCastleKingside(Colour sideToMove, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
-            // Console.WriteLine("Checked for castling kingside.");
             return CanCastle(sideToMove == Colour.White ? WhiteKSC : BlackKSC, friendlyPieces, opponentPieces);
         }
     }

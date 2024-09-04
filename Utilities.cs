@@ -81,7 +81,7 @@ namespace Utilities
             return finalResult;
         }
 
-        public static void PrintMultipleBitboards(ulong[] bitboards)
+        public static void PrintBitboards(ulong[] bitboards)
         {
             Console.WriteLine(StringifyMultipleBitboards(bitboards));
         }

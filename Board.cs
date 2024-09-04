@@ -1,6 +1,7 @@
 using Utilities;
 using MoveGeneration;
 using System.Numerics;
+using Bitboards;
 
 namespace ChessBoard
 {
@@ -15,9 +16,9 @@ namespace ChessBoard
         public ulong Queens = 0;
         public ulong King = 0;
 
-        public int KingSquare { get { return BitOperations.TrailingZeroCount(King); } }
+        public ulong mask { get { return Bishops | Knights | Rooks | Pawns | Queens | King; } }
 
-        public ulong ALL() => Bishops | Knights | Rooks | Pawns | Queens | King;
+        public int KingSquare { get { return BitOperations.TrailingZeroCount(King); } }
 
         public static List<int> BitIndexes(ulong bitboard)
         {
@@ -35,7 +36,7 @@ namespace ChessBoard
             return positions;
         }
 
-        public ulong AttackingBitmask(ulong occupancy)
+        private ulong BaseAttackingBitmask(ulong occupancy)
         {
             ulong attacks = 0;
 
@@ -80,9 +81,17 @@ namespace ChessBoard
 
             attacks |= pawnRightAttacks;
 
-            attacks &= ~ALL();
-
             return attacks;
+        }
+
+        public ulong AttackingBitmask(ulong opponentOccupancy)
+        {
+            return BaseAttackingBitmask(mask | opponentOccupancy) & ~mask;
+        }
+
+        public ulong ProtectedBitmask(ulong opponentOccupancy)
+        {
+            return BaseAttackingBitmask(mask | opponentOccupancy) & mask & ~King; // cannot protect king
         }
     }
 
@@ -129,7 +138,7 @@ namespace ChessBoard
         public ulong D_pinmask;
         public ulong checkmask;
 
-        public ulong boardMask { get { return White.ALL() | Black.ALL(); } }
+        public ulong boardMask { get { return White.mask | Black.mask; } }
         
         public int SideToMove { get { return moveCounter & 1; } }
         public Colour ColourToMove { get { return (Colour)SideToMove; } }
@@ -376,21 +385,7 @@ namespace ChessBoard
                     }
                     
                     // Update piece bitboard
-                    ulong bb;
-                    
-                    try
-                    {
-                        bb = GetBitboardFromEnum(pieceToMove);
-                    }
-                    catch
-                    {
-                        throw new Exception(
-                              $"cannot select empty bitboard.\n\nMove: {move} (Stack: [{string.Join(", ", moveHistory)}]\n"
-                            + $"Board:\n{this}\n\n"
-                            // + $"Bitboards:\n{Display.StringifyMultipleBitboards([])}"
-                            + "\n\n"
-                        );
-                    }
+                    ulong bb = GetBitboardFromEnum(pieceToMove);
 
                     bb ^= 1UL << move.src | 1UL << move.dst;
                     SetBitboardFromEnum(pieceToMove, bb);
@@ -429,25 +424,12 @@ namespace ChessBoard
 
                     // Get square of pawn to capture
                     int inFrontOfEPsquare = move.dst + (SideToMove == 1 ? -8 : 8);
-
-                    // Console.WriteLine($"In front of EP square: {inFrontOfEPsquare}  |  Move: {move}\nBoard:\n{this}");
                     
                     Piece opponentPawnType = BoardArray[inFrontOfEPsquare];
                     
                     // Remove pawn from bitboard and update it
-                    ulong opponentPawnBB;
-                    try
-                    {
-                        opponentPawnBB = GetBitboardFromEnum(opponentPawnType);
-                    }
-                    catch
-                    {
-                        throw new Exception(
-                              $"cannot select empty bitboard.\n\nMove: {move}\nBoard:\n{this}\n\n"
-                            + $"Bitboards:\n{Display.StringifyMultipleBitboards([1UL << inFrontOfEPsquare, epSquare])}"
-                            + "\n\n"
-                        );
-                    }
+                    ulong opponentPawnBB = GetBitboardFromEnum(opponentPawnType);
+
                     opponentPawnBB ^= 1UL << inFrontOfEPsquare;
                     SetBitboardFromEnum(opponentPawnType, opponentPawnBB);
 
@@ -535,8 +517,6 @@ namespace ChessBoard
 
             boardHistory.Push(boardInfo);
             UpdatePinsAndCheckers();
-
-            // Console.WriteLine($"Made move {move}.\nBoard:\n{this}");
         }
 
         public void UndoMove()
@@ -595,8 +575,6 @@ namespace ChessBoard
 
                     // Get the square in front of the EP square (relative to the side moving)
                     int squarePawnWasTakenFrom = previousMove.dst + (SideToMove == 0 ? -8 : 8);
-
-                    // Console.WriteLine($"Undoing move {previousMove} - pawn was taken from square {squarePawnWasTakenFrom}");
 
                     // Update bitboard of opponent pawn type
                     // (replace the pawn that was captured)
@@ -697,114 +675,6 @@ namespace ChessBoard
             UpdatePinsAndCheckers();
         }
 
-        
-        public ulong GetSquareAttackers(int square, PieceSet aggressor)
-        {
-            PieceSet victim = aggressor == White ? Black : White;
-
-            ulong attackers = 0;
-
-            // Check for enemy knights
-            attackers |= aggressor.Knights & Moves.GetKnightMoveBitmask(aggressor.ALL(), square);
-            
-            // Check for enemy bishops. Add a variable for reuse
-            ulong bishopMoves = Moves.GetBishopMoveBitmask(boardMask, square);
-            attackers |= aggressor.Bishops & bishopMoves;
-
-            // Check for enemy rooks. Add a variable for reuse
-            ulong rookMoves = Moves.GetRookMoveBitmask(boardMask, square);
-            attackers |= aggressor.Rooks & rookMoves;
-
-            // Check for queen attacks. Add a variable to combine both
-            ulong queenMoves = bishopMoves | rookMoves;
-            attackers |= aggressor.Queens & queenMoves;
-
-            // Check for king moves
-            attackers |= aggressor.King & Moves.GetKingMoveBitmask(boardMask, square);
-
-            // Get pawn attacks
-            ulong pawnAttacks;
-            ulong squareToCheck = 1UL << square;
-            
-            if (aggressor == White)
-            {
-                pawnAttacks = (squareToCheck & ~BoardFile.A) >> 7 | (squareToCheck & ~BoardFile.H) >> 9;
-            }
-            else
-            {
-                pawnAttacks = (squareToCheck & ~BoardFile.A) << 7 | (squareToCheck & ~BoardFile.H) << 9;
-            }
-
-            // Check for pawn attacks
-            attackers |= pawnAttacks & aggressor.Pawns;
-
-            return attackers;
-        }
-
-
-        public bool IsSquareAttacked(int square, PieceSet aggressor)
-        {
-            PieceSet victim = aggressor == White ? Black : White;
-
-            bool doesIntersect(ulong bb1, ulong bb2) { return (bb1 & bb2) != 0; }
-
-            // Check for enemy knights
-            if (doesIntersect(aggressor.Knights, Moves.GetKnightMoveBitmask(boardMask, square)))
-            {
-                return true;
-            }
-            
-            // Check for enemy bishops
-            ulong bishopMoves = Moves.GetBishopMoveBitmask(boardMask, square);
-            
-            if (doesIntersect(aggressor.Bishops, bishopMoves))
-            {
-                return true;
-            }
-
-            // Check for enemy rooks
-            ulong rookMoves = Moves.GetRookMoveBitmask(boardMask, square);
-
-            if (doesIntersect(aggressor.Rooks, rookMoves))
-            {
-                return true;
-            }
-
-            // Check for enemy queens (combo of bishop and rooks).
-            if (doesIntersect(aggressor.Queens, bishopMoves | rookMoves))
-            {
-                return true;
-            }
-
-            // Check for king moves
-            if (doesIntersect(aggressor.King, Moves.GetKingMoveBitmask(boardMask, square)))
-            {
-                return true;
-            }
-
-            // Get pawn attacks
-            ulong pawnAttacks;
-            ulong squareToCheck = 1UL << square;
-            
-            if (aggressor == White)
-            {
-                pawnAttacks = (squareToCheck & ~BoardFile.A) >> 7 | (squareToCheck & ~BoardFile.H) >> 9;
-            }
-            else
-            {
-                pawnAttacks = (squareToCheck & ~BoardFile.A) << 7 | (squareToCheck & ~BoardFile.H) << 9;
-            }
-
-            // Check for pawn attacks
-            if (doesIntersect(pawnAttacks, aggressor.Pawns))
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-
         public List<Move> GenerateLegalMoves()
         {
             List<Move> moves = [];
@@ -812,8 +682,8 @@ namespace ChessBoard
             foreach (int position in PieceSet.BitIndexes(PlayerToMove.Queens | PlayerToMove.Rooks))
             {
                 Moves.GenerateRookMoves(
-                    friendlyOccupancy: PlayerToMove.ALL(),
-                    opponentOccupancy: OpponentToMove.ALL(),
+                    friendlyOccupancy: PlayerToMove.mask,
+                    opponentOccupancy: OpponentToMove.mask,
                     square: position,
                     HV_pinmask: HV_pinmask,
                     D_pinmask: D_pinmask,
@@ -825,8 +695,8 @@ namespace ChessBoard
             foreach (int position in PieceSet.BitIndexes(PlayerToMove.Queens | PlayerToMove.Bishops))
             {
                 Moves.GenerateBishopMoves(
-                    friendlyOccupancy: PlayerToMove.ALL(),
-                    opponentOccupancy: OpponentToMove.ALL(),
+                    friendlyOccupancy: PlayerToMove.mask,
+                    opponentOccupancy: OpponentToMove.mask,
                     square: position,
                     HV_pinmask: HV_pinmask,
                     D_pinmask: D_pinmask,
@@ -838,7 +708,7 @@ namespace ChessBoard
             foreach (int position in PieceSet.BitIndexes(PlayerToMove.Knights))
             {
                 Moves.GenerateKnightMoves(
-                    friendlyOccupancy: PlayerToMove.ALL(),
+                    friendlyOccupancy: PlayerToMove.mask,
                     square: position,
                     moveListToAddTo: moves,
                     pinmask: D_pinmask | HV_pinmask,
@@ -912,8 +782,8 @@ namespace ChessBoard
 
             // For checking pawns:
             var pawnMoves = Moves.GetPawnMoves(
-                friendlyOccupancy: them.ALL(),
-                opponentOccupancy: us.ALL(),
+                friendlyOccupancy: us.mask,
+                opponentOccupancy: them.mask,
                 pawnBitboard: us.King,
                 epSquareBitboard: 0,
                 HV_pinmask: HV_pinmask,
@@ -929,13 +799,11 @@ namespace ChessBoard
             ulong bishopsQueens = GetBitboardFromEnum(Piece.BlackBishop - SideToMove) ^ queens;
             ulong rooksQueens = GetBitboardFromEnum(Piece.BlackRook - SideToMove) ^ queens;
 
-            ulong bishopAttacks = bishopsQueens & Moves.GetBishopMoveBitmask(them.ALL(), us.KingSquare);
-            ulong rookAttacks = rooksQueens & Moves.GetRookMoveBitmask(them.ALL(), us.KingSquare );
-            
-            // ulong pinned = 0;
-            // ulong checkers = pawnCheckers | knightCheckers;
+            ulong bishopAttacks = bishopsQueens & Moves.GetBishopMoveBitmask(them.mask, us.KingSquare);
+            ulong rookAttacks = rooksQueens & Moves.GetRookMoveBitmask(them.mask, us.KingSquare );
             
             checkmask = pawnCheckers | knightCheckers;
+            
             D_pinmask = 0;
             HV_pinmask = 0;
             
@@ -945,17 +813,15 @@ namespace ChessBoard
                 bishopAttacks ^= 1UL << sq; // remove LSB
 
                 ulong checkray = RayBetween(us.KingSquare, sq);
-                ulong blockers = checkray & us.ALL();
+                ulong blockers = checkray & us.mask;
                 int numBlockers = BitOperations.PopCount(blockers);
 
                 if (numBlockers == 0)
                 {
-                    // checkers |= 1UL << sq;
                     checkmask |= checkray | 1UL << sq;
                 }
                 else if (numBlockers == 1)
                 {
-                    // pinned |= blockers;
                     D_pinmask |= checkray | 1UL << sq | blockers;
                 }
             }
@@ -966,17 +832,15 @@ namespace ChessBoard
                 rookAttacks ^= 1UL << sq; // remove LSB
 
                 ulong checkray = RayBetween(us.KingSquare, sq);
-                ulong blockers = checkray & us.ALL();
+                ulong blockers = checkray & us.mask;
                 int numBlockers = BitOperations.PopCount(blockers);
 
                 if (numBlockers == 0)
                 {
-                    // checkers |= 1UL << sq;
                     checkmask |= checkray | 1UL << sq;
                 }
                 else if (numBlockers == 1)
                 {
-                    // pinned |= blockers;
                     HV_pinmask |= checkray | 1UL << sq | blockers;
                 }
             }
