@@ -6,15 +6,15 @@ namespace PerftUtils
 {
     public static class Perft
     {
-        static int perftTest(Board board, int depth, bool bulk = true)
+        static ulong perftTest(Board board, int depth, bool bulk = true)
         {
             if (depth == 0) return 1;
 
             var nextMoves = board.GenerateLegalMoves();
 
-            if (bulk && depth == 1) return nextMoves.Count;
+            if (bulk && depth == 1) return (ulong)nextMoves.Count;
 
-            int count = 0;
+            ulong count = 0;
 
             foreach (Move next in nextMoves)
             {
@@ -26,20 +26,21 @@ namespace PerftUtils
             return count;
         }
 
-        public static int MoveByMovePerft(Board board, int depth, bool bulk = true)
+        public static ulong MoveByMovePerft(Board board, int depth, bool bulk = true)
         {
             var nextMoves = board.GenerateLegalMoves();
 
-            int total = 0;
+            ulong total = 0;
 
             foreach (Move next in nextMoves)
             {
                 board.MakeMove(next);
 
-                int nodes = perftTest(board, depth - 1, bulk);
+                ulong nodes = perftTest(board, depth - 1, bulk);
                 total += nodes;
                 
                 Console.WriteLine($"{next} - {nodes}");
+                // Console.WriteLine($"Board:\n{board}");
 
                 board.UndoMove();
             }
@@ -56,7 +57,7 @@ namespace PerftUtils
 
             var watch = Stopwatch.StartNew();
             
-            int total = MoveByMovePerft(board, depth, bulk);
+            ulong total = MoveByMovePerft(board, depth, bulk);
             
             watch.Stop();
 

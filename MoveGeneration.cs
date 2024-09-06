@@ -4,17 +4,18 @@ using ChessBoard;
 using Castling;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using Bitboards;
 
 namespace MoveGeneration
 {
     public record MagicEntry
     {
-        public ulong mask;
-        public ulong magic;
+        public Bitboard mask;
+        public Bitboard magic;
         public int shift;
         public int offset;
 
-        public MagicEntry(ulong mask, ulong magic, int shift, int offset)
+        public MagicEntry(Bitboard mask, Bitboard magic, int shift, int offset)
         {
             this.mask = mask;
             this.magic = magic;
@@ -158,7 +159,7 @@ namespace MoveGeneration
             new(mask: 0x0020100804020000, magic: 0xA001204204080186, shift: 59, offset: 5152),
             new(mask: 0x0040201008040200, magic: 0xC04010040258C048, shift: 58, offset: 5184)
         ];
-        public ulong[] SLIDING_PIECE_MOVE_TABLE = new ulong[294_912];
+        public Bitboard[] SLIDING_PIECE_MOVE_TABLE = new Bitboard[294_912];
 
         public int BISHOPS_START_FROM = 1 << 18;
 
@@ -192,15 +193,15 @@ namespace MoveGeneration
             }
         }
 
-        public static ulong TraceOutRookMoves(ulong occupancy, int square)
+        public static Bitboard TraceOutRookMoves(Bitboard occupancy, int square)
         {
-            ulong bitmask = 0;
+            Bitboard bitmask = 0;
             
             // Get a row of bits os we don't cross to the other side of the board
-            ulong bitsOfRank = 0xFFUL << 8 * (square / 8);
+            Bitboard bitsOfRank = 0xFFUL << 8 * (square / 8);
 
             // Moving up
-            ulong bit = 1UL << square;
+            Bitboard bit = 1UL << square;
 
             while ((bit & ~(bit & occupancy)) != 0)
             {
@@ -254,9 +255,9 @@ namespace MoveGeneration
             return bitmask;
         }
 
-        public static ulong TraceOutBishopMoves(ulong occupancy, int square)
+        public static Bitboard TraceOutBishopMoves(Bitboard occupancy, int square)
         {
-            ulong bitmask = 0;
+            Bitboard bitmask = 0;
             
             /*
             top_left = fileA | rank8
@@ -265,13 +266,13 @@ namespace MoveGeneration
             bottom_right = fileH | rank1
             */
 
-            ulong topLeft  = BoardFile.A | BoardRank.Eighth;
-            ulong topRight = BoardFile.H | BoardRank.Eighth;
+            Bitboard topLeft  = BoardFile.A | BoardRank.Eighth;
+            Bitboard topRight = BoardFile.H | BoardRank.Eighth;
             
-            ulong bottomLeft  = BoardFile.A | BoardRank.First;
-            ulong bottomRight = BoardFile.H | BoardRank.First;
+            Bitboard bottomLeft  = BoardFile.A | BoardRank.First;
+            Bitboard bottomRight = BoardFile.H | BoardRank.First;
 
-            ulong bit = 1UL << square;
+            Bitboard bit = 1UL << square;
 
             while ((bit & ~(bit & topLeft)) != 0)
             {
@@ -317,16 +318,16 @@ namespace MoveGeneration
 
     public class FixedMovementTables
     {
-        public ulong[] KING_MOVES_TABLE = new ulong[64];
-        public ulong[] KNIGHT_MOVES_TABLE = new ulong[64];
+        public Bitboard[] KING_MOVES_TABLE = new Bitboard[64];
+        public Bitboard[] KNIGHT_MOVES_TABLE = new Bitboard[64];
 
         public FixedMovementTables()
         {
             // King moves
             for (int square = 0; square < 64; square++)
             {
-                ulong sq = 1UL << square;
-                ulong moves = 0;
+                Bitboard sq = 1UL << square;
+                Bitboard moves = 0;
 
                 int[] directions = [7, 8, 9, 1];
 
@@ -348,8 +349,8 @@ namespace MoveGeneration
             // Knight moves
             for (int square = 0; square < 64; square++)
             {
-                ulong sq = 1UL << square;
-                ulong moves = 0;
+                Bitboard sq = 1UL << square;
+                Bitboard moves = 0;
                 int[] directions = [17, 15, 10, 6];
 
                 foreach (int direction in directions)
@@ -464,7 +465,7 @@ namespace MoveGeneration
         public readonly static MagicBitboards mb = new();
         public readonly static FixedMovementTables fmt = new();
 
-        public static ulong GetBishopMoveBitmask(ulong occupancy, int square)
+        public static Bitboard GetBishopMoveBitmask(Bitboard occupancy, int square)
         {
             ulong occ;
 
@@ -479,7 +480,7 @@ namespace MoveGeneration
             return mb.SLIDING_PIECE_MOVE_TABLE[index];
         }
 
-        public static ulong GetRookMoveBitmask(ulong occupancy, int square)
+        public static Bitboard GetRookMoveBitmask(Bitboard occupancy, int square)
         {
             ulong occ;
 
@@ -494,92 +495,87 @@ namespace MoveGeneration
             return mb.SLIDING_PIECE_MOVE_TABLE[index];
         }
 
-        public static ulong GetQueenMoveBitmask(ulong occupancy, int square)
+        public static Bitboard GetQueenMoveBitmask(Bitboard occupancy, int square)
         {
             return GetBishopMoveBitmask(occupancy, square) | GetRookMoveBitmask(occupancy, square);
         }
 
-        public static void GenerateMovesFromSameSquare(ulong moveBitmask, int startSquare, List<Move> moveListToAddTo)
+        public static void GenerateMovesFromSameSquare(Bitboard moveBitmask, int startSquare, List<Move> moveListToAddTo)
         {
-            while (moveBitmask != 0)
+            while (moveBitmask)
             {
-                int LSB_index = BitOperations.TrailingZeroCount(moveBitmask);
-
                 Move move = new()
                 {
                     src = startSquare,
-                    dst = LSB_index,
+                    dst = moveBitmask.PopLSB(),
                     type = MoveType.Normal
                 };
 
                 moveListToAddTo.Add(move);
-
-                moveBitmask ^= 1UL << LSB_index;
             }
         }
 
-        public static void GenerateMovesWithOffset(ulong moveBitmask, int offset, List<Move> moveListToAddTo, MoveType moveFlag = MoveType.Normal)
+        public static void GenerateMovesWithOffset(Bitboard moveBitmask, int offset, List<Move> moveListToAddTo, MoveType moveFlag = MoveType.Normal)
         {
-            while (moveBitmask != 0)
+            while (moveBitmask)
             {
-                int LSB_index = BitOperations.TrailingZeroCount(moveBitmask);
+                // Console.WriteLine($"Bitmask now:\n{moveBitmask}\n");
+                int sq = moveBitmask.PopLSB();
 
                 Move move = new()
                 {
-                    src = LSB_index - offset,
-                    dst = LSB_index,
+                    src = sq - offset,
+                    dst = sq,
                     type = moveFlag
                 };
 
                 moveListToAddTo.Add(move);
-
-                moveBitmask ^= 1UL << LSB_index;
             }
         }
 
 
         public static void GenerateRookMoves(
-            ulong friendlyOccupancy,
-            ulong opponentOccupancy,
-            ulong D_pinmask,
-            ulong HV_pinmask,
-            ulong checkmask,
+            Bitboard friendlyOccupancy,
+            Bitboard opponentOccupancy,
+            Bitboard D_pinmask,
+            Bitboard HV_pinmask,
+            Bitboard checkmask,
             int square,
             List<Move> moveListToAddTo
         )
         {
-            ulong moveBitmask = GetRookMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
+            Bitboard moveBitmask = GetRookMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
 
             moveBitmask &= checkmask;
             
             // Cannot move if on diagonal pinmask
-            if ((D_pinmask & 1UL << square) > 0) return;
+            if (D_pinmask & 1UL << square) return;
             
             // Can move on an orthogonal pinmask, mask moves against pinmask
-            if ((HV_pinmask & 1UL << square) > 0) moveBitmask &= HV_pinmask;
+            if (HV_pinmask & 1UL << square) moveBitmask &= HV_pinmask;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
 
         public static void GenerateBishopMoves(
-            ulong friendlyOccupancy,
-            ulong opponentOccupancy,
-            ulong D_pinmask,
-            ulong HV_pinmask,
-            ulong checkmask,
+            Bitboard friendlyOccupancy,
+            Bitboard opponentOccupancy,
+            Bitboard D_pinmask,
+            Bitboard HV_pinmask,
+            Bitboard checkmask,
             int square,
             List<Move> moveListToAddTo
         )
         {
-            ulong moveBitmask = GetBishopMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
+            Bitboard moveBitmask = GetBishopMoveBitmask(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
 
             moveBitmask &= checkmask;
             
             // Cannot move if on orthogonal pinmask
-            if ((HV_pinmask & 1UL << square) > 0) return;
+            if (HV_pinmask & 1UL << square) return;
             
             // Can move on a diagonal pinmask, mask moves against pinmask
-            if ((D_pinmask & 1UL << square) > 0) moveBitmask &= D_pinmask;
+            if (D_pinmask & 1UL << square) moveBitmask &= D_pinmask;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -591,11 +587,11 @@ namespace MoveGeneration
             List<Move> moveListToAddTo
         )
         {
-            ulong friendlyOccupancy = friendlyPieces.mask;
+            Bitboard friendlyOccupancy = friendlyPieces.mask;
 
-            ulong opponentAttacks = opponentPieces.AttackingBitmask(friendlyOccupancy ^ friendlyPieces.King);
+            Bitboard opponentAttacks = opponentPieces.AttackingBitmask(friendlyOccupancy ^ friendlyPieces.King);
 
-            ulong moveBitmask = fmt.KING_MOVES_TABLE[square]; // table entry
+            Bitboard moveBitmask = fmt.KING_MOVES_TABLE[square]; // table entry
 
             moveBitmask &= ~friendlyOccupancy; // exclude friendly pieces
             moveBitmask &= ~opponentAttacks; // exclude opponent attack rays
@@ -604,24 +600,24 @@ namespace MoveGeneration
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
 
-        public static ulong GetKnightMoveBitmask(ulong friendlyOccupancy, int square)
+        public static Bitboard GetKnightMoveBitmask(Bitboard friendlyOccupancy, int square)
         {
             return ~friendlyOccupancy & fmt.KNIGHT_MOVES_TABLE[square];
         }
 
         public static void GenerateKnightMoves(
-            ulong friendlyOccupancy,
+            Bitboard friendlyOccupancy,
             int square,
-            ulong pinmask,
-            ulong checkmask,
+            Bitboard pinmask,
+            Bitboard checkmask,
             List<Move> moveListToAddTo
         )
         {
-            ulong moveBitmask = GetKnightMoveBitmask(friendlyOccupancy, square);
+            Bitboard moveBitmask = GetKnightMoveBitmask(friendlyOccupancy, square);
 
             moveBitmask &= checkmask;
 
-            if ((pinmask & 1UL << square) != 0) moveBitmask &= pinmask;
+            if (pinmask & 1UL << square) moveBitmask &= pinmask;
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -629,54 +625,54 @@ namespace MoveGeneration
         
         public struct PawnMoves
         {
-            public ulong LeftAttacks;
-            public ulong RightAttacks;
-            public ulong SinglePushForward;
-            public ulong DoublePushForward;
+            public Bitboard LeftAttacks;
+            public Bitboard RightAttacks;
+            public Bitboard SinglePushForward;
+            public Bitboard DoublePushForward;
         }
 
         
         public static PawnMoves GetWhitePawnMoves(
-            ulong whiteMask,
-            ulong blackMask,
-            ulong pawnBitboard,
-            ulong epSquareBitboard,
-            ulong HV_pinmask,
-            ulong D_pinmask,
-            ulong checkmask
+            Bitboard whiteMask,
+            Bitboard blackMask,
+            Bitboard pawnBitboard,
+            Bitboard epSquareBitboard,
+            Bitboard HV_pinmask,
+            Bitboard D_pinmask,
+            Bitboard checkmask
         )
         {
             PawnMoves moves;
 
             blackMask |= epSquareBitboard;
 
-            ulong boardMask = whiteMask | blackMask;
-            ulong noHVpawns = pawnBitboard & ~HV_pinmask;
+            Bitboard boardMask = whiteMask | blackMask;
+            Bitboard noHVpawns = pawnBitboard & ~HV_pinmask;
             
-            ulong diagPinned = noHVpawns & D_pinmask;
-            ulong diagUnpinned = noHVpawns & ~D_pinmask;
+            Bitboard diagPinned = noHVpawns & D_pinmask;
+            Bitboard diagUnpinned = noHVpawns & ~D_pinmask;
 
-            ulong pinnedLeftAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.A) << 7);
-            ulong pinnedRightAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.H) << 9);
+            Bitboard pinnedLeftAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.A) << 7);
+            Bitboard pinnedRightAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.H) << 9);
 
-            ulong regularLeftAttacks = blackMask & ((diagUnpinned & ~BoardFile.A) << 7);
-            ulong regularRightAttacks = blackMask & ((diagUnpinned & ~BoardFile.H) << 9);
+            Bitboard regularLeftAttacks = blackMask & ((diagUnpinned & ~BoardFile.A) << 7);
+            Bitboard regularRightAttacks = blackMask & ((diagUnpinned & ~BoardFile.H) << 9);
 
             moves.LeftAttacks = (pinnedLeftAttacks | regularLeftAttacks) & checkmask;
             moves.RightAttacks = (pinnedRightAttacks | regularRightAttacks) & checkmask;
 
             // -----------------------------------------------------------------------------
             
-            ulong noDpawns = pawnBitboard & ~D_pinmask;
+            Bitboard noDpawns = pawnBitboard & ~D_pinmask;
 
-            ulong HVpinnedPawns = noDpawns & HV_pinmask;
-            ulong HVunpinnedPawns = noDpawns & ~HV_pinmask;
+            Bitboard HVpinnedPawns = noDpawns & HV_pinmask;
+            Bitboard HVunpinnedPawns = noDpawns & ~HV_pinmask;
 
-            ulong normalSinglePushes = ~boardMask & (HVunpinnedPawns << 8);
-            ulong normalDoublePushes = ~boardMask & ((BoardRank.Third & normalSinglePushes) << 8);
+            Bitboard normalSinglePushes = ~boardMask & (HVunpinnedPawns << 8);
+            Bitboard normalDoublePushes = ~boardMask & ((BoardRank.Third & normalSinglePushes) << 8);
 
-            ulong pinnedSinglePushes = ~boardMask & (HVpinnedPawns << 8) & HV_pinmask;
-            ulong pinnedDoublePushes = ~boardMask & ((BoardRank.Third & pinnedSinglePushes) << 8) & HV_pinmask;
+            Bitboard pinnedSinglePushes = ~boardMask & (HVpinnedPawns << 8) & HV_pinmask;
+            Bitboard pinnedDoublePushes = ~boardMask & ((BoardRank.Third & pinnedSinglePushes) << 8) & HV_pinmask;
 
             moves.SinglePushForward = (pinnedSinglePushes | normalSinglePushes) & checkmask;
             moves.DoublePushForward = (pinnedDoublePushes | normalDoublePushes) & checkmask;
@@ -685,46 +681,46 @@ namespace MoveGeneration
         }
 
         public static PawnMoves GetBlackPawnMoves(
-            ulong blackMask,
-            ulong whiteMask,
-            ulong pawnBitboard,
-            ulong epSquareBitboard,
-            ulong HV_pinmask,
-            ulong D_pinmask,
-            ulong checkmask
+            Bitboard blackMask,
+            Bitboard whiteMask,
+            Bitboard pawnBitboard,
+            Bitboard epSquareBitboard,
+            Bitboard HV_pinmask,
+            Bitboard D_pinmask,
+            Bitboard checkmask
         )
         {
             PawnMoves moves;
 
             whiteMask |= epSquareBitboard;
 
-            ulong boardMask = whiteMask | blackMask;
-            ulong noHVpawns = pawnBitboard & ~HV_pinmask;
+            Bitboard boardMask = whiteMask | blackMask;
+            Bitboard noHVpawns = pawnBitboard & ~HV_pinmask;
             
-            ulong diagPinned = noHVpawns & D_pinmask;
-            ulong diagUnpinned = noHVpawns & ~D_pinmask;
+            Bitboard diagPinned = noHVpawns & D_pinmask;
+            Bitboard diagUnpinned = noHVpawns & ~D_pinmask;
 
-            ulong pinnedLeftAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.A) >> 9); // add checks to not shift pawns on edges
-            ulong pinnedRightAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.H) >> 7);
+            Bitboard pinnedLeftAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.A) >> 9); // add checks to not shift pawns on edges
+            Bitboard pinnedRightAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.H) >> 7);
 
-            ulong regularLeftAttacks = whiteMask & ((diagUnpinned & ~BoardFile.A) >> 9);
-            ulong regularRightAttacks = whiteMask & ((diagUnpinned & ~BoardFile.H) >> 7);
+            Bitboard regularLeftAttacks = whiteMask & ((diagUnpinned & ~BoardFile.A) >> 9);
+            Bitboard regularRightAttacks = whiteMask & ((diagUnpinned & ~BoardFile.H) >> 7);
 
             moves.LeftAttacks = (pinnedLeftAttacks | regularLeftAttacks) & checkmask;
             moves.RightAttacks = (pinnedRightAttacks | regularRightAttacks) & checkmask;
 
             // -----------------------------------------------------------------------------
             
-            ulong noDpawns = pawnBitboard & ~D_pinmask;
+            Bitboard noDpawns = pawnBitboard & ~D_pinmask;
 
-            ulong HVpinnedPawns = noDpawns & HV_pinmask;
-            ulong HVunpinnedPawns = noDpawns & ~HV_pinmask;
+            Bitboard HVpinnedPawns = noDpawns & HV_pinmask;
+            Bitboard HVunpinnedPawns = noDpawns & ~HV_pinmask;
 
-            ulong normalSinglePushes = ~boardMask & (HVunpinnedPawns >> 8);
-            ulong normalDoublePushes = ~boardMask & ((BoardRank.Sixth & normalSinglePushes) >> 8);
+            Bitboard normalSinglePushes = ~boardMask & (HVunpinnedPawns >> 8);
+            Bitboard normalDoublePushes = ~boardMask & ((BoardRank.Sixth & normalSinglePushes) >> 8);
 
-            ulong pinnedSinglePushes = ~boardMask & (HVpinnedPawns >> 8) & HV_pinmask;
-            ulong pinnedDoublePushes = ~boardMask & ((BoardRank.Sixth & pinnedSinglePushes) >> 8) & HV_pinmask;
+            Bitboard pinnedSinglePushes = ~boardMask & (HVpinnedPawns >> 8) & HV_pinmask;
+            Bitboard pinnedDoublePushes = ~boardMask & ((BoardRank.Sixth & pinnedSinglePushes) >> 8) & HV_pinmask;
 
             moves.SinglePushForward = (pinnedSinglePushes | normalSinglePushes) & checkmask;
             moves.DoublePushForward = (pinnedDoublePushes | normalDoublePushes) & checkmask;
@@ -734,13 +730,13 @@ namespace MoveGeneration
 
 
         public static PawnMoves GetPawnMoves(
-            ulong friendlyOccupancy,
-            ulong opponentOccupancy,
-            ulong pawnBitboard,
-            ulong epSquareBitboard,
-            ulong HV_pinmask,
-            ulong D_pinmask,
-            ulong checkmask,
+            Bitboard friendlyOccupancy,
+            Bitboard opponentOccupancy,
+            Bitboard pawnBitboard,
+            Bitboard epSquareBitboard,
+            Bitboard HV_pinmask,
+            Bitboard D_pinmask,
+            Bitboard checkmask,
             Colour side
         )
         {            
@@ -771,13 +767,13 @@ namespace MoveGeneration
         }
 
         public static void GenerateWhitePawnMoves(
-            ulong whiteMask,
-            ulong blackMask,
-            ulong pawnBitboard,
-            ulong epSquareBitboard,
-            ulong HV_pinmask,
-            ulong D_pinmask,
-            ulong checkmask,
+            Bitboard whiteMask,
+            Bitboard blackMask,
+            Bitboard pawnBitboard,
+            Bitboard epSquareBitboard,
+            Bitboard HV_pinmask,
+            Bitboard D_pinmask,
+            Bitboard checkmask,
             List<Move> moveListToAddTo
         )
         {
@@ -804,13 +800,13 @@ namespace MoveGeneration
         }
 
         public static void GenerateBlackPawnMoves(
-            ulong whiteMask,
-            ulong blackMask,
-            ulong pawnBitboard,
-            ulong epSquareBitboard,
-            ulong HV_pinmask,
-            ulong D_pinmask,
-            ulong checkmask,
+            Bitboard whiteMask,
+            Bitboard blackMask,
+            Bitboard pawnBitboard,
+            Bitboard epSquareBitboard,
+            Bitboard HV_pinmask,
+            Bitboard D_pinmask,
+            Bitboard checkmask,
             List<Move> moveListToAddTo
         )
         {
@@ -839,10 +835,10 @@ namespace MoveGeneration
         public static void GeneratePawnMoves(
             PieceSet friendlyPieces,
             PieceSet opponentPieces,
-            ulong epSquareBitboard,
-            ulong HV_pinmask,
-            ulong D_pinmask,
-            ulong checkmask,
+            Bitboard epSquareBitboard,
+            Bitboard HV_pinmask,
+            Bitboard D_pinmask,
+            Bitboard checkmask,
             List<Move> moveListToAddTo,
             Colour side
         )
@@ -943,15 +939,15 @@ namespace Castling
 {
     public static class CastlingRights
     {
-        private static ulong WhiteQSC = 0b00001110UL;
-        private static ulong WhiteKSC = 0b01100000UL;
-        private static ulong BlackKSC = 0b00001110UL << 56;
-        private static ulong BlackQSC = 0b01100000UL << 56;
+        private static Bitboard WhiteQSC = 0b00001110UL;
+        private static Bitboard WhiteKSC = 0b01100000UL;
+        private static Bitboard BlackKSC = 0b00001110UL << 56;
+        private static Bitboard BlackQSC = 0b01100000UL << 56;
 
-        public static bool CanCastle(ulong castlingRegion, PieceSet friendlyPieces, PieceSet opponentPieces)
+        public static bool CanCastle(Bitboard castlingRegion, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
-            ulong boardMask = friendlyPieces.mask | opponentPieces.mask;
-            ulong opponentAttacks = opponentPieces.AttackingBitmask(friendlyPieces.mask);
+            Bitboard boardMask = friendlyPieces.mask | opponentPieces.mask;
+            Bitboard opponentAttacks = opponentPieces.AttackingBitmask(friendlyPieces.mask);
 
             return (opponentAttacks & castlingRegion) == 0
                 && (boardMask       & castlingRegion) == 0;
