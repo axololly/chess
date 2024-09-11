@@ -1,11 +1,11 @@
 using System.Numerics;
-using Utilities;
+using Chess.Utilities;
 
-namespace Bitboards
+namespace Chess.Bitboards
 {
     public struct Bitboard
     {
-        private ulong bitboard;
+        public ulong bitboard;
 
         public static ulong Filled { get { return ulong.MaxValue; } }
 
@@ -13,8 +13,9 @@ namespace Bitboards
 
         // For changing between types
         public static implicit operator ulong(Bitboard bb) => bb.bitboard;
-        public static implicit operator Bitboard(ulong u) => new(u);
-        public static implicit operator bool(Bitboard bb) => bb.bitboard != 0;
+        public static implicit operator int(Bitboard bb)   => (int)bb.bitboard;
+        public static implicit operator Bitboard(ulong u)  => new(u);
+        public static implicit operator bool(Bitboard bb)  => bb.bitboard != 0;
 
         // For using bitwise operators
         public static Bitboard operator |(Bitboard first, Bitboard second)
@@ -34,6 +35,21 @@ namespace Bitboards
         
         public static Bitboard operator <<(Bitboard bb, int shift)
             => new(bb.bitboard << shift);
+        
+        public static bool operator ==(Bitboard? bb1, Bitboard? bb2)
+            => Equals(bb1, bb2);
+        
+        public static bool operator !=(Bitboard? bb1, Bitboard? bb2)
+            => !Equals(bb1, bb2);
+
+        public override int GetHashCode()
+            => (int)bitboard;
+        
+        public override bool Equals(object? other)
+        {
+            if (other is not Bitboard) return false;
+            return ((Bitboard)other).bitboard == bitboard;
+        }
 
 
         // Bit tricks

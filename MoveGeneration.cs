@@ -1,12 +1,11 @@
-using System.Numerics;
-using Utilities;
-using ChessBoard;
-using Castling;
+using Chess;
+using Chess.Utilities;
+using Chess.Bitboards;
+using Chess.Castling;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
-using Bitboards;
 
-namespace MoveGeneration
+namespace Chess.MoveGen
 {
     public record MagicEntry
     {
@@ -380,26 +379,61 @@ namespace MoveGeneration
         Promotion
     }
 
+    public enum PromoPiece
+    {
+        None,
+        Knight,
+        Bishop,
+        Rook,
+        Queen
+    }
+
     public partial class Move // TODO: find out what needs Move to be partial
     {
         public int src; // Where the move starts
         public int dst; // Where the move ends
         public MoveType type; // Type of move
+        public PromoPiece promoPiece = PromoPiece.None;
 
-        public static Move FromString(string moveString, MoveType type = MoveType.Normal)
+        public static Move FromString(string moveString, MoveType type = MoveType.Normal, PromoPiece promoPiece = PromoPiece.None)
         {
+            if (
+                (type != MoveType.Promotion && promoPiece != PromoPiece.None)
+             || (type == MoveType.Promotion && promoPiece == PromoPiece.None)
+            )
+            {
+                throw new Exception("promoted piece and promotion flag must be set together.");
+            }
+
             Regex regex = MoveRegex();
             string match = regex.Match(moveString).Value;
 
-            int convert(string value)
+            static int convert(string value) => "12345678".IndexOf(value[1]) * 8 + "abcdefgh".IndexOf(value[0]);
+
+            if (match.Length == 5) // promotion move present
             {
-                return "12345678".IndexOf(value[1]) * 8 + "abcdefgh".IndexOf(value[0]);
+                return new Move()
+                {
+                    src = convert(match[..2]),
+                    dst = convert(match.Substring(2, 2)),
+                    type = MoveType.Promotion,
+                    promoPiece = match[4] switch
+                    {
+                        'r' => PromoPiece.Rook,
+                        'b' => PromoPiece.Bishop,
+                        'n' => PromoPiece.Knight,
+                        'q' => PromoPiece.Queen,
+                        
+                        _ => throw new Exception("error when deconstructing promotion piece type.")
+                    }
+                };
             }
 
             Move move = new()
             {
                 src = convert(match[..2]),
                 dst = convert(match.Substring(2, 2)),
+                promoPiece = promoPiece,
                 type = type
             };
 
@@ -408,18 +442,6 @@ namespace MoveGeneration
 
         public override string ToString()
         {
-            if (type == MoveType.Castling)
-            {
-                if (src < dst) // dst is more to the right than src, kingside
-                {
-                    return "O-O";
-                }
-                else
-                {
-                    return "O-O-O";
-                }
-            }
-
             static string convert(int index)
             {
                 int file = index % 8;
@@ -428,7 +450,17 @@ namespace MoveGeneration
                 return "abcdefgh"[file].ToString() + "12345678"[rank].ToString();
             }
 
-            return convert(src) + convert(dst);
+            string promoPieceString = promoPiece switch
+            {
+                PromoPiece.Bishop => "b",
+                PromoPiece.Knight => "n",
+                PromoPiece.Rook   => "r",
+                PromoPiece.Queen  => "q",
+                PromoPiece.None   => "",
+                _ => throw new Exception("promotion piece enum unaccounted for.")
+            };
+
+            return convert(src) + convert(dst) + promoPieceString;
         }
 
         public override bool Equals([NotNullWhen(true)] object? other)
@@ -445,13 +477,19 @@ namespace MoveGeneration
         }
 
 
-        [GeneratedRegex("^[a-h][1-8][a-h][1-8]$")]
+        [GeneratedRegex("^[a-h][1-8][a-h][1-8][qbrn]?$")]
         private static partial Regex MoveRegex();
 
         
-        public static bool operator ==(Move left, Move right)
+        public static bool operator ==(Move? left, Move? right)
         {
-            return left.Equals(right);
+            if (left is null) return right is null;
+            if (right is null) return left is null;
+
+            return left.src        == right.src
+                && left.dst        == right.dst
+                && left.type       == right.type
+                && left.promoPiece == right.promoPiece;
         }
 
         public static bool operator !=(Move left, Move right)
@@ -517,19 +555,49 @@ namespace MoveGeneration
 
         public static void GenerateMovesWithOffset(Bitboard moveBitmask, int offset, List<Move> moveListToAddTo, MoveType moveFlag = MoveType.Normal)
         {
-            while (moveBitmask)
+            if (moveFlag == MoveType.Promotion)
             {
-                // Console.WriteLine($"Bitmask now:\n{moveBitmask}\n");
-                int sq = moveBitmask.PopLSB();
+                PromoPiece[] promoPieces = [
+                    PromoPiece.Bishop,
+                    PromoPiece.Knight,
+                    PromoPiece.Rook,
+                    PromoPiece.Queen
+                ];
 
-                Move move = new()
+                while (moveBitmask)
                 {
-                    src = sq - offset,
-                    dst = sq,
-                    type = moveFlag
-                };
+                    int sq = moveBitmask.PopLSB();
 
-                moveListToAddTo.Add(move);
+                    // Add all 4 promo pieces as moves to move list
+                    for (int i = 0; i < 4; i++)
+                    {
+                        moveListToAddTo.Add(
+                            new Move()
+                            {
+                                src = sq - offset,
+                                dst = sq,
+                                type = moveFlag,
+                                promoPiece = promoPieces[i]
+                            }
+                        );
+                    }
+                }
+            }
+            else
+            {
+                while (moveBitmask)
+                {
+                    int sq = moveBitmask.PopLSB();
+
+                    Move move = new()
+                    {
+                        src = sq - offset,
+                        dst = sq,
+                        type = moveFlag
+                    };
+
+                    moveListToAddTo.Add(move);
+                }
             }
         }
 
@@ -572,10 +640,10 @@ namespace MoveGeneration
             moveBitmask &= checkmask;
             
             // Cannot move if on orthogonal pinmask
-            if (HV_pinmask & 1UL << square) return;
+            if (HV_pinmask >> square & 1) return;
             
             // Can move on a diagonal pinmask, mask moves against pinmask
-            if (D_pinmask & 1UL << square) moveBitmask &= D_pinmask;
+            if (D_pinmask >> square & 1) moveBitmask &= D_pinmask;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -587,15 +655,12 @@ namespace MoveGeneration
             List<Move> moveListToAddTo
         )
         {
-            Bitboard friendlyOccupancy = friendlyPieces.mask;
-
-            Bitboard opponentAttacks = opponentPieces.AttackingBitmask(friendlyOccupancy ^ friendlyPieces.King);
+            Bitboard boardMask = friendlyPieces.mask | opponentPieces.mask;
 
             Bitboard moveBitmask = fmt.KING_MOVES_TABLE[square]; // table entry
 
-            moveBitmask &= ~friendlyOccupancy; // exclude friendly pieces
-            moveBitmask &= ~opponentAttacks; // exclude opponent attack rays
-            moveBitmask &= ~opponentPieces.ProtectedBitmask(friendlyOccupancy); // exclude opponent protected pieces
+            moveBitmask &= ~friendlyPieces.mask; // exclude friendly pieces
+            moveBitmask &= ~opponentPieces.BaseAttackingBitmask(boardMask ^ friendlyPieces.King); // exclude opponent attack rays and protected pieces (combined)
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -788,15 +853,21 @@ namespace MoveGeneration
             );
 
             // Exclude the en-passant bitboard originally to take down all normal moves
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~epSquareBitboard, 7, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks & ~epSquareBitboard, 9, moveListToAddTo);
+            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~BoardRank.Eighth & ~epSquareBitboard, 7, moveListToAddTo);
+            GenerateMovesWithOffset(pawnMoves.RightAttacks & ~BoardRank.Eighth & ~epSquareBitboard, 9, moveListToAddTo);
 
             // Generate all moves WITH the en passant bitboard only so we can include the en-passant flag
             GenerateMovesWithOffset(pawnMoves.LeftAttacks  & epSquareBitboard, 7, moveListToAddTo, moveFlag: MoveType.EnPassant);
             GenerateMovesWithOffset(pawnMoves.RightAttacks & epSquareBitboard, 9, moveListToAddTo, moveFlag: MoveType.EnPassant);
 
-            GenerateMovesWithOffset(pawnMoves.SinglePushForward, 8, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.DoublePushForward, 16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
+            // Generate normal pushes
+            GenerateMovesWithOffset(pawnMoves.SinglePushForward & ~BoardRank.Eighth, 8, moveListToAddTo);
+            GenerateMovesWithOffset(pawnMoves.DoublePushForward & ~BoardRank.Eighth, 16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
+
+            // Generate all promotion moves
+            GenerateMovesWithOffset(pawnMoves.LeftAttacks       & BoardRank.Eighth, 7, moveListToAddTo, moveFlag: MoveType.Promotion);
+            GenerateMovesWithOffset(pawnMoves.RightAttacks      & BoardRank.Eighth, 9, moveListToAddTo, moveFlag: MoveType.Promotion);
+            GenerateMovesWithOffset(pawnMoves.SinglePushForward & BoardRank.Eighth, 8, moveListToAddTo, moveFlag: MoveType.Promotion);
         }
 
         public static void GenerateBlackPawnMoves(
@@ -821,15 +892,21 @@ namespace MoveGeneration
             );
 
             // Exclude the en-passant bitboard originally to take down all normal moves
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~epSquareBitboard, -9, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks & ~epSquareBitboard, -7, moveListToAddTo);
+            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~BoardRank.First & ~epSquareBitboard, -9, moveListToAddTo);
+            GenerateMovesWithOffset(pawnMoves.RightAttacks & ~BoardRank.First & ~epSquareBitboard, -7, moveListToAddTo);
 
             // Generate all moves WITH the en passant bitboard only so we can include the en-passant flag
             GenerateMovesWithOffset(pawnMoves.LeftAttacks  & epSquareBitboard, -9, moveListToAddTo, moveFlag: MoveType.EnPassant);
             GenerateMovesWithOffset(pawnMoves.RightAttacks & epSquareBitboard, -7, moveListToAddTo, moveFlag: MoveType.EnPassant);
 
-            GenerateMovesWithOffset(pawnMoves.SinglePushForward, -8, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.DoublePushForward, -16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
+            // Generate all single and double pushes
+            GenerateMovesWithOffset(pawnMoves.SinglePushForward & ~BoardRank.First, -8, moveListToAddTo);
+            GenerateMovesWithOffset(pawnMoves.DoublePushForward & ~BoardRank.First, -16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
+
+            // Generate all promotion moves
+            GenerateMovesWithOffset(pawnMoves.LeftAttacks       & BoardRank.First, -9, moveListToAddTo, moveFlag: MoveType.Promotion);
+            GenerateMovesWithOffset(pawnMoves.RightAttacks      & BoardRank.First, -7, moveListToAddTo, moveFlag: MoveType.Promotion);
+            GenerateMovesWithOffset(pawnMoves.SinglePushForward & BoardRank.First, -8, moveListToAddTo, moveFlag: MoveType.Promotion);
         }
 
         public static void GeneratePawnMoves(
@@ -913,8 +990,6 @@ namespace MoveGeneration
                 Move move = new()
                 {
                     /*
-                    1 => 5, 2 => 57
-
                     . . 2 . k . . .
                     . . . . . . . .
                     . . . . . . . .
@@ -935,22 +1010,22 @@ namespace MoveGeneration
     }
 }
 
-namespace Castling
+namespace Chess.Castling
 {
     public static class CastlingRights
     {
-        private static Bitboard WhiteQSC = 0b00001110UL;
-        private static Bitboard WhiteKSC = 0b01100000UL;
-        private static Bitboard BlackKSC = 0b00001110UL << 56;
-        private static Bitboard BlackQSC = 0b01100000UL << 56;
+        public static Bitboard WhiteQSC = 0b00001110UL;
+        public static Bitboard WhiteKSC = 0b01100000UL;
+        public static Bitboard BlackQSC = 0b00001110UL << 56;
+        public static Bitboard BlackKSC = 0b01100000UL << 56;
 
         public static bool CanCastle(Bitboard castlingRegion, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
             Bitboard boardMask = friendlyPieces.mask | opponentPieces.mask;
             Bitboard opponentAttacks = opponentPieces.AttackingBitmask(friendlyPieces.mask);
 
-            return (opponentAttacks & castlingRegion) == 0
-                && (boardMask       & castlingRegion) == 0;
+            return !(opponentAttacks & castlingRegion)
+                && !(boardMask       & castlingRegion);
         }
 
         public static bool CanCastleQueenside(Colour sideToMove, PieceSet friendlyPieces, PieceSet opponentPieces)

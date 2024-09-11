@@ -1,8 +1,31 @@
-namespace Utilities
+using System.Runtime.Serialization;
+using Chess.Bitboards;
+
+namespace Chess.Utilities
 {
+    public struct Config
+    {
+        public static bool ColourBitboards = true;
+        public static bool UseZeroes       = false;
+    }
+
+    public struct TerminalColours
+    {
+        public static string RED = "\u001b[31m";
+        public static string GREEN = "\u001b[32m";
+        public static string WHITE = "\u001b[37m";
+    }
+
     public class Display
     {
-        public static string StringifyBitboard(ulong bitboard)
+        private static string BIT_ON  = Config.ColourBitboards ? TerminalColours.GREEN + "1 " : "1 ";
+        private static string BIT_OFF = Config.UseZeroes ? (
+            Config.ColourBitboards ? TerminalColours.RED + "0 " : "0 ")
+        : (
+            Config.ColourBitboards ? TerminalColours.RED + ". " : ". "
+        );
+
+        public static string StringifyBitboard(Bitboard bitboard)
         {
             string[] board = new string[8];
 
@@ -14,20 +37,13 @@ namespace Utilities
                 {
                     ulong sq = 1UL << i * 8 + j;
 
-                    if ((bitboard & sq) != 0)
-                    {
-                        line += "1 ";
-                    }
-                    else
-                    {
-                        line += ". ";
-                    }
+                    line += bitboard & sq ? BIT_ON : BIT_OFF;
                 }
 
                 board[7 - i] = line;
             }
 
-            return string.Join('\n', board);
+            return string.Join('\n', board) + TerminalColours.WHITE;
         }
 
         public static void PrintBitboard(ulong bitboard)
@@ -35,13 +51,27 @@ namespace Utilities
             Console.WriteLine(StringifyBitboard(bitboard));
         }
 
-        public static string StringifyMultipleBitboards(ulong[] bitboards)
+        public static string StringifyMultipleBitboards(Bitboard[] bitboards, string[]? labels = null)
         {
             List<string[]> boardsToPrint = [];
             
             string finalResult = "";
 
-            foreach (ulong bitboard in bitboards)
+            if (labels != null)
+            {
+                foreach (string label in labels)
+                {
+                    string convertedLabel = label;
+
+                    if (label.Length > 17) convertedLabel = label[.. 13] + "...:";
+
+                    finalResult += convertedLabel + new string(' ', 17 - convertedLabel.Length) + "   ";
+                }
+
+                finalResult += '\n';
+            }
+
+            foreach (Bitboard bitboard in bitboards)
             {
                 string[] board = new string[8];
 
@@ -53,14 +83,7 @@ namespace Utilities
                     {
                         ulong sq = 1UL << i * 8 + j;
 
-                        if ((bitboard & sq) != 0)
-                        {
-                            line += "1 ";
-                        }
-                        else
-                        {
-                            line += ". ";
-                        }
+                        line += bitboard & sq ? BIT_ON : BIT_OFF;
                     }
 
                     board[7 - i] = line;
@@ -78,12 +101,12 @@ namespace Utilities
                 finalResult += lineToPrint + (line < 7 ? "\n" : "");
             }
 
-            return finalResult;
+            return finalResult + TerminalColours.WHITE;
         }
 
-        public static void PrintBitboards(ulong[] bitboards)
+        public static void PrintBitboards(Bitboard[] bitboards, string[]? labels = null)
         {
-            Console.WriteLine(StringifyMultipleBitboards(bitboards));
+            Console.WriteLine(StringifyMultipleBitboards(bitboards, labels));
         }
     }
 

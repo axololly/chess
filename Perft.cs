@@ -1,12 +1,13 @@
 using System.Diagnostics;
-using ChessBoard;
-using MoveGeneration;
+using Chess;
+using Chess.MoveGen;
+using Chess.Utilities;
 
 namespace PerftUtils
 {
     public static class Perft
     {
-        static ulong perftTest(Board board, int depth, bool bulk = true)
+        public static ulong BasePerftTest(Board board, int depth, bool bulk = true)
         {
             if (depth == 0) return 1;
 
@@ -19,31 +20,34 @@ namespace PerftUtils
             foreach (Move next in nextMoves)
             {
                 board.MakeMove(next);
-                count += perftTest(board, depth - 1, bulk);
+                count += BasePerftTest(board, depth - 1, bulk);
                 board.UndoMove();
             }
 
             return count;
         }
 
-        public static ulong MoveByMovePerft(Board board, int depth, bool bulk = true)
+        public static ulong MoveByMovePerft(Board board, int depth, bool bulk = true, string pauseBeforeThisMove = "")
         {
             var nextMoves = board.GenerateLegalMoves();
-
+            List<string> results = [];
             ulong total = 0;
 
             foreach (Move next in nextMoves)
             {
+                if (next.ToString() == pauseBeforeThisMove) return 0;
+                
                 board.MakeMove(next);
 
-                ulong nodes = perftTest(board, depth - 1, bulk);
+                ulong nodes = BasePerftTest(board, depth - 1, bulk);
                 total += nodes;
                 
-                Console.WriteLine($"{next} - {nodes}");
-                // Console.WriteLine($"Board:\n{board}");
+                results.Add($"{next} - {nodes}");
 
                 board.UndoMove();
             }
+
+            Console.WriteLine($"Total: {total}\n{string.Join('\n', results)}");
 
             return total;
         }
@@ -78,6 +82,23 @@ namespace PerftUtils
 
             Console.WriteLine();
             Console.WriteLine($"Board:\n{board}");
+        }
+
+        public static void GlobalPerft(Board board, int maxDepth, bool bulk = true)
+        {
+            Stopwatch sw = new();
+            Console.WriteLine($"Running global perft on board:\n{board}\n");
+
+            for (int depth = 1; depth < maxDepth + 1; depth++)
+            {
+                sw.Reset();
+
+                sw.Start();
+                ulong count = BasePerftTest(board, depth, bulk);
+                sw.Stop();
+
+                Console.WriteLine($"Depth: {depth}  |  Nodes: {count}  |  Time taken: {sw.ElapsedMilliseconds}ms");
+            }
         }
     }
 }
