@@ -18,11 +18,11 @@ namespace Chess.Utilities
 
     public class Display
     {
-        private static string BIT_ON  = Config.ColourBitboards ? TerminalColours.GREEN + "1 " : "1 ";
+        private static string BIT_ON  = Config.ColourBitboards ? TerminalColours.GREEN + "1 " + TerminalColours.WHITE : "1 ";
         private static string BIT_OFF = Config.UseZeroes ? (
-            Config.ColourBitboards ? TerminalColours.RED + "0 " : "0 ")
+            Config.ColourBitboards ? TerminalColours.RED + "0 " + TerminalColours.WHITE : "0 ")
         : (
-            Config.ColourBitboards ? TerminalColours.RED + ". " : ". "
+            Config.ColourBitboards ? TerminalColours.RED + ". " + TerminalColours.WHITE : ". "
         );
 
         public static string StringifyBitboard(Bitboard bitboard)
@@ -51,9 +51,19 @@ namespace Chess.Utilities
             Console.WriteLine(StringifyBitboard(bitboard));
         }
 
-        public static string StringifyMultipleBitboards(Bitboard[] bitboards, string[]? labels = null)
+        public static string StringifyMultipleBitboards(Bitboard[] bitboards, Board? optionalBoard = null, List<string>? labels = null, int spacing = 4)
         {
             List<string[]> boardsToPrint = [];
+
+            if (optionalBoard != null)
+            {
+                boardsToPrint.Add(optionalBoard.ToString().Split('\n'));
+                
+                if (labels != null)
+                {
+                    labels.Insert(0, "Board");
+                }
+            }
             
             string finalResult = "";
 
@@ -63,9 +73,9 @@ namespace Chess.Utilities
                 {
                     string convertedLabel = label;
 
-                    if (label.Length > 17) convertedLabel = label[.. 13] + "...:";
+                    if (label.Length > 16) convertedLabel = label[.. 12] + "...:";
 
-                    finalResult += convertedLabel + new string(' ', 17 - convertedLabel.Length) + "   ";
+                    finalResult += convertedLabel + new string(' ', 16 - convertedLabel.Length) + new string(' ', spacing);
                 }
 
                 finalResult += '\n';
@@ -96,7 +106,7 @@ namespace Chess.Utilities
             {
                 List<string> linesToPrint = boardsToPrint.Select(board => board[line]).ToList();
                 
-                string lineToPrint = string.Join("    ", linesToPrint);
+                string lineToPrint = string.Join(new string(' ', spacing), linesToPrint);
 
                 finalResult += lineToPrint + (line < 7 ? "\n" : "");
             }
@@ -104,9 +114,9 @@ namespace Chess.Utilities
             return finalResult + TerminalColours.WHITE;
         }
 
-        public static void PrintBitboards(Bitboard[] bitboards, string[]? labels = null)
+        public static void PrintBitboards(Bitboard[] bitboards, Board? optionalBoard = null, List<string>? labels = null, int spacing = 4)
         {
-            Console.WriteLine(StringifyMultipleBitboards(bitboards, labels));
+            Console.WriteLine(StringifyMultipleBitboards(bitboards, optionalBoard, labels, spacing));
         }
     }
 

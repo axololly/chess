@@ -442,13 +442,7 @@ namespace Chess.MoveGen
 
         public override string ToString()
         {
-            static string convert(int index)
-            {
-                int file = index % 8;
-                int rank = index / 8;
-
-                return "abcdefgh"[file].ToString() + "12345678"[rank].ToString();
-            }
+            static string convert(int index) => "abcdefgh"[index % 8].ToString() + "12345678"[index / 8].ToString();
 
             string promoPieceString = promoPiece switch
             {
@@ -678,11 +672,11 @@ namespace Chess.MoveGen
             List<Move> moveListToAddTo
         )
         {
+            if (pinmask & 1UL << square) return; // if knight is pinned, it can't move anywhere
+
             Bitboard moveBitmask = GetKnightMoveBitmask(friendlyOccupancy, square);
 
             moveBitmask &= checkmask;
-
-            if (pinmask & 1UL << square) moveBitmask &= pinmask;
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -952,12 +946,12 @@ namespace Chess.MoveGen
             Colour sideToMove,
             PieceSet friendlyPieces,
             PieceSet opponentPieces,
-            byte castlingRights,
+            int castlingRights,
             List<Move> moveListToAddTo
         )
         {
-            byte KSC = (byte)(sideToMove == Colour.White ? 0b1000 : 0b0010);
-            byte QSC = (byte)(sideToMove == Colour.White ? 0b0100 : 0b0001);
+            int KSC = sideToMove == Colour.White ? 0b1000 : 0b0010;
+            int QSC = sideToMove == Colour.White ? 0b0100 : 0b0001;
 
             if (CastlingRights.CanCastleKingside(sideToMove, friendlyPieces, opponentPieces)
                 && (castlingRights & KSC) != 0)

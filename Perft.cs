@@ -1,9 +1,7 @@
 using System.Diagnostics;
-using Chess;
 using Chess.MoveGen;
-using Chess.Utilities;
 
-namespace PerftUtils
+namespace Chess.Perft
 {
     public static class Perft
     {
@@ -30,7 +28,6 @@ namespace PerftUtils
         public static ulong MoveByMovePerft(Board board, int depth, bool bulk = true, string pauseBeforeThisMove = "")
         {
             var nextMoves = board.GenerateLegalMoves();
-            List<string> results = [];
             ulong total = 0;
 
             foreach (Move next in nextMoves)
@@ -42,12 +39,12 @@ namespace PerftUtils
                 ulong nodes = BasePerftTest(board, depth - 1, bulk);
                 total += nodes;
                 
-                results.Add($"{next} - {nodes}");
+                Console.WriteLine($"{next} - {nodes}");
 
                 board.UndoMove();
             }
 
-            Console.WriteLine($"Total: {total}\n{string.Join('\n', results)}");
+            Console.WriteLine($"Total: {total}");
 
             return total;
         }
