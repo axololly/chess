@@ -51,7 +51,10 @@ namespace Chess.Perft
         {
             var nextMoves = board.GenerateLegalMoves();
             ulong total = 0;
+            
             Stopwatch sw = new();
+            
+            long totalMilliseconds = 0;
 
             foreach (Move next in nextMoves)
             {
@@ -64,11 +67,14 @@ namespace Chess.Perft
                 sw.Stop();
 
                 total += nodes;
+                totalMilliseconds += sw.ElapsedMilliseconds;
                 
-                Console.WriteLine($"{next} - {nodes}  [taken {sw.ElapsedMilliseconds}ms]");
+                Console.WriteLine($"{next} - {nodes}  [taken {sw.ElapsedMilliseconds}ms, {nodes / ((double)sw.ElapsedMilliseconds / 1000)} nps]");
 
                 board.UndoMove();
             }
+
+            Console.WriteLine($"\nTotal nodes: {total}\nTotal time: {totalMilliseconds / 1000}s\nTotal nps: {total / ((double)totalMilliseconds / 1000)}");
 
             return total;
         }
