@@ -688,7 +688,7 @@ namespace Chess.MoveGen
         {
             PieceSet us, them;
             Direction up, upLeft, upRight, downLeft, downRight;
-            Bitboard promotionRank, enPassantRank, doublePushRank;
+            Bitboard promotionRank, doublePushRank;
             int[] pawnShifts;
             
             if (side == Colour.White)
@@ -704,7 +704,6 @@ namespace Chess.MoveGen
                 downRight = Direction.Southeast;
 
                 promotionRank  = Ranks.Eighth;
-                enPassantRank  = Ranks.Sixth;
                 doublePushRank = Ranks.Third;
 
                 pawnShifts = [7, 8, 9, 16];
@@ -722,7 +721,6 @@ namespace Chess.MoveGen
                 downRight = Direction.Northeast;
 
                 promotionRank  = Ranks.First;
-                enPassantRank  = Ranks.Third;
                 doublePushRank = Ranks.Sixth;
 
                 pawnShifts = [-9, -8, -7, -16];
@@ -789,7 +787,7 @@ namespace Chess.MoveGen
             
             Bitboard enemyQueenRook = them.Queens | them.Rooks;
 
-            bool isPossiblePin = (bool)kingMask && (bool)enemyQueenRook;
+            bool isPossiblePin = !kingMask.IsEmpty && !enemyQueenRook.IsEmpty;
 
             // Pawns pinned orthogonally cannot take any pieces because
             // they would leave their pinmask.

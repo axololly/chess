@@ -17,9 +17,11 @@ namespace Types.Bitboards
 
     public struct Bitboard
     {
-        public ulong bitboard;
+        private ulong bitboard;
 
-        public static ulong Filled { get { return ulong.MaxValue; } }
+        public readonly bool IsEmpty { get { return bitboard == 0; } }
+
+        public static Bitboard Filled { get { return ulong.MaxValue; } }
 
         public Bitboard(ulong bitboard = 0) => this.bitboard = bitboard;
 
@@ -53,9 +55,6 @@ namespace Types.Bitboards
         
         public static bool operator !=(Bitboard? bb1, Bitboard? bb2)
             => !Equals(bb1, bb2);
-        
-        public static bool operator true (Bitboard bb) => bb != 0;
-        public static bool operator false(Bitboard bb) => bb == 0;
 
         public override int GetHashCode()
             => (int)bitboard;

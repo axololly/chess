@@ -267,6 +267,20 @@ namespace Chess
 
             UpdatePinsAndCheckers();
 
+            /*
+            boardHistory.Push(
+                new BoardInfo()
+                {
+                    castlingRights = castlingRights,
+                    EPsquare = epSquare,
+                    capturedPiece = Piece.Empty,
+                    checkmask = checkmask,
+                    pinD = pinD,
+                    pinHV = pinHV
+                }
+            );
+            */
+
             // TODO: Set halftime move counter
         }
 
@@ -332,6 +346,8 @@ namespace Chess
             moveHistory.Push(move);
             moveCounter++;
 
+            Piece pieceCaptured;
+
             // Board info for archiving
             BoardInfo boardInfo = new()
             {
@@ -386,7 +402,7 @@ namespace Chess
                     if (BoardArray[move.dst] != Piece.Empty)
                     {
                         // Get the piece that was captured
-                        Piece pieceCaptured = BoardArray[move.dst];
+                        pieceCaptured = BoardArray[move.dst];
 
                         if (pieceCaptured == Piece.WhiteRook)
                         {
@@ -397,7 +413,6 @@ namespace Chess
                         if (pieceCaptured == Piece.BlackRook)
                         {
                             if (move.dst == 56) castlingRights &= ~0b0001;
-                            // if (move.dst == 56 ) Console.WriteLine($"Captured black's queenside rook.");
                             if (move.dst == 63) castlingRights &= ~0b0010; // issue somewhere here with castling and shit
                         }
 
@@ -475,7 +490,7 @@ namespace Chess
                     Piece kingToMove = Piece.BlackKing - SideToMove;
                     
                     // Reset castling rights depending on side
-                    castlingRights ^= (byte)(SideToMove == 0 ? 0b0011 : 0b1100);
+                    castlingRights &= ~(0b0011 << 2 * SideToMove);
 
                     // Update bitboard of king
                     bb = GetBitboardFromEnum(kingToMove);
@@ -543,7 +558,21 @@ namespace Chess
                         SetBitboardFromEnum(pieceLandedOn, bb);
                     }
 
+                    pieceCaptured = BoardArray[move.dst];
+
                     BoardArray[move.dst] = promotedPiece;
+
+                    if (pieceCaptured == Piece.WhiteRook)
+                    {
+                        if (move.dst == 0) castlingRights &= ~0b0100;
+                        if (move.dst == 7) castlingRights &= ~0b1000;
+                    }
+
+                    if (pieceCaptured == Piece.BlackRook)
+                    {
+                        if (move.dst == 56) castlingRights &= ~0b0001;
+                        if (move.dst == 63) castlingRights &= ~0b0010; // issue somewhere here with castling and shit
+                    }
 
                     // Update bitboards
                     bb = GetBitboardFromEnum(pieceToMove);
@@ -576,6 +605,7 @@ namespace Chess
             pinD = previousBoardInfo.pinD;
             pinHV = previousBoardInfo.pinHV;
             castlingRights = previousBoardInfo.castlingRights;
+            epSquare = previousBoardInfo.EPsquare;
             
             moveCounter--; // Decrease move counter
 
