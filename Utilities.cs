@@ -1,5 +1,4 @@
-using System.Runtime.Serialization;
-using Chess.Bitboards;
+using Types.Bitboards;
 
 namespace Chess.Utilities
 {
@@ -35,7 +34,7 @@ namespace Chess.Utilities
 
                 for (int j = 0; j < 8; j++)
                 {
-                    ulong sq = 1UL << i * 8 + j;
+                    Bitboard sq = 1UL << i * 8 + j;
 
                     line += bitboard & sq ? BIT_ON : BIT_OFF;
                 }
@@ -46,7 +45,7 @@ namespace Chess.Utilities
             return string.Join('\n', board) + TerminalColours.WHITE;
         }
 
-        public static void PrintBitboard(ulong bitboard)
+        public static void PrintBitboard(Bitboard bitboard)
         {
             Console.WriteLine(StringifyBitboard(bitboard));
         }
@@ -73,7 +72,7 @@ namespace Chess.Utilities
                 {
                     string convertedLabel = label;
 
-                    if (label.Length > 16) convertedLabel = label[.. 12] + "...:";
+                    if (label.Length > 16) convertedLabel = label[.. 12] + "...";
 
                     finalResult += convertedLabel + new string(' ', 16 - convertedLabel.Length) + new string(' ', spacing);
                 }
@@ -91,7 +90,7 @@ namespace Chess.Utilities
 
                     for (int j = 0; j < 8; j++)
                     {
-                        ulong sq = 1UL << i * 8 + j;
+                        Bitboard sq = 1UL << i * 8 + j;
 
                         line += bitboard & sq ? BIT_ON : BIT_OFF;
                     }
@@ -121,32 +120,39 @@ namespace Chess.Utilities
     }
 
 
-    public class BoardFile
+    public struct Files
     {
-        public static readonly ulong A = 0x101010101010101;
-        public static readonly ulong B = 0x202020202020202;
-        public static readonly ulong C = 0x404040404040404;
-        public static readonly ulong D = 0x808080808080808;
-        public static readonly ulong E = 0x1010101010101010;
-        public static readonly ulong F = 0x2020202020202020;
-        public static readonly ulong G = 0x4040404040404040;
-        public static readonly ulong H = 0x8080808080808080;
+        public static readonly Bitboard A = 0x101010101010101;
+        public static readonly Bitboard B = 0x202020202020202;
+        public static readonly Bitboard C = 0x404040404040404;
+        public static readonly Bitboard D = 0x808080808080808;
+        public static readonly Bitboard E = 0x1010101010101010;
+        public static readonly Bitboard F = 0x2020202020202020;
+        public static readonly Bitboard G = 0x4040404040404040;
+        public static readonly Bitboard H = 0x8080808080808080;
 
         
-        public static readonly ulong AB = A | B;
-        public static readonly ulong GH = G | H;
+        public static readonly Bitboard AB = A | B;
+        public static readonly Bitboard GH = G | H;
     }
 
-    public class BoardRank
+    public struct Ranks
     {
-        public static readonly ulong First = 0xFF;
-        public static readonly ulong Second = 0xFF00;
-        public static readonly ulong Third = 0xFF0000;
-        public static readonly ulong Fourth = 0xFF000000;
-        public static readonly ulong Fifth = 0xFF00000000;
-        public static readonly ulong Sixth = 0xFF0000000000;
-        public static readonly ulong Seventh = 0xFF000000000000;
-        public static readonly ulong Eighth = 0xFF00000000000000;
+        public static readonly Bitboard First = 0xFF;
+        public static readonly Bitboard Second = 0xFF00;
+        public static readonly Bitboard Third = 0xFF0000;
+        public static readonly Bitboard Fourth = 0xFF000000;
+        public static readonly Bitboard Fifth = 0xFF00000000;
+        public static readonly Bitboard Sixth = 0xFF0000000000;
+        public static readonly Bitboard Seventh = 0xFF000000000000;
+        public static readonly Bitboard Eighth = 0xFF00000000000000;
+
+        private static readonly Bitboard[] All = [
+            First, Second, Third, Fourth,
+            Fifth, Sixth, Seventh, Eighth
+        ];
+
+        public static Bitboard ContainsPosition(int position) => All[position / 8];
     }
 
     public enum Colour

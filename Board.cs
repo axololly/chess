@@ -1,11 +1,11 @@
 using Chess.Utilities;
 using Chess.MoveGen;
 using Types.Nibble;
-using Chess.Bitboards;
+using Types.Bitboards;
 
 namespace Chess
 {
-    public class PieceSet(Colour colour)
+    public struct PieceSet(Colour colour)
     {
         public Colour colour = colour;
 
@@ -16,13 +16,13 @@ namespace Chess
         public Bitboard Queens = 0;
         public Bitboard King = 0;
 
-        public Bitboard mask { get { return Bishops | Knights | Rooks | Pawns | Queens | King; } }
+        public Bitboard Mask { get { return Bishops | Knights | Rooks | Pawns | Queens | King; } }
 
         public int KingSquare { get {
             if (!King) throw new Exception($"{colour} king bitboard is not present.");
             
-            // return BitOperations.TrailingZeroCount(King);
-            var T = King; return T.PopLSB();
+            var T = King;
+            return T.PopLSB();
         } }
 
         public Bitboard BaseAttackingBitmask(Bitboard occupancy)
@@ -46,13 +46,13 @@ namespace Chess
 
             if (colour == Colour.White)
             {
-                pawnLeftAttacks  = (Pawns & ~BoardFile.A) << 7;
-                pawnRightAttacks = (Pawns & ~BoardFile.H) << 9;
+                pawnLeftAttacks  = (Pawns & ~Files.A) << 7;
+                pawnRightAttacks = (Pawns & ~Files.H) << 9;
             }
             else
             {
-                pawnLeftAttacks  = (Pawns & ~BoardFile.A) >> 9;
-                pawnRightAttacks = (Pawns & ~BoardFile.H) >> 7;
+                pawnLeftAttacks  = (Pawns & ~Files.A) >> 9;
+                pawnRightAttacks = (Pawns & ~Files.H) >> 7;
             }
 
             attacks |= pawnLeftAttacks | pawnRightAttacks;
@@ -62,12 +62,12 @@ namespace Chess
 
         public Bitboard AttackingBitmask(Bitboard opponentOccupancy)
         {
-            return BaseAttackingBitmask(mask | opponentOccupancy) & ~mask;
+            return BaseAttackingBitmask(Mask | opponentOccupancy) & ~Mask;
         }
 
         public Bitboard ProtectedBitmask(Bitboard opponentOccupancy)
         {
-            return BaseAttackingBitmask(mask | opponentOccupancy) & mask & ~King; // cannot protect king
+            return BaseAttackingBitmask(Mask | opponentOccupancy) & Mask & ~King; // cannot protect king
         }
     }
 
@@ -96,8 +96,8 @@ namespace Chess
         public Piece capturedPiece = Piece.Empty;
         
         public Bitboard checkmask;
-        public Bitboard D_pinmask;
-        public Bitboard HV_pinmask;
+        public Bitboard pinD;
+        public Bitboard pinHV;
     }
 
     public class Board
@@ -110,12 +110,12 @@ namespace Chess
         public Stack<Move> moveHistory = new();
         public Stack<BoardInfo> boardHistory = new();
 
-        public Bitboard HV_pinmask;
-        public Bitboard D_pinmask;
+        public Bitboard pinHV;
+        public Bitboard pinD;
         public Bitboard checkmask;
         public Bitboard checkers;
 
-        public Bitboard boardMask { get { return White.mask | Black.mask; } }
+        public Bitboard boardMask { get { return White.Mask | Black.Mask; } }
         public string FEN { get { return GetFEN(); } }
         
         public int SideToMove { get { return moveCounter & 1; } }
@@ -338,8 +338,8 @@ namespace Chess
                 EPsquare = epSquare,
                 castlingRights = castlingRights,
                 checkmask = checkmask,
-                HV_pinmask = HV_pinmask,
-                D_pinmask = D_pinmask
+                pinHV = pinHV,
+                pinD = pinD
             };
 
             // Modify the board based on the type of move played
@@ -427,7 +427,7 @@ namespace Chess
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Get square of pawn to capture
-                    int inFrontOfEPsquare = move.dst + (SideToMove == 1 ? -8 : 8);
+                    int inFrontOfEPsquare = move.dst - 8 * (move.src < move.dst ? 1 : -1);
                     
                     Piece opponentPawnType = BoardArray[inFrontOfEPsquare];
                     
@@ -573,8 +573,8 @@ namespace Chess
             BoardInfo previousBoardInfo = boardHistory.Pop();
 
             checkmask = previousBoardInfo.checkmask;
-            D_pinmask = previousBoardInfo.D_pinmask;
-            HV_pinmask = previousBoardInfo.HV_pinmask;
+            pinD = previousBoardInfo.pinD;
+            pinHV = previousBoardInfo.pinHV;
             castlingRights = previousBoardInfo.castlingRights;
             
             moveCounter--; // Decrease move counter
@@ -777,11 +777,11 @@ namespace Chess
             while (rooksQueens)
             {
                 Moves.GenerateRookMoves(
-                    friendlyOccupancy: PlayerToMove.mask,
-                    opponentOccupancy: OpponentToMove.mask,
+                    friendlyOccupancy: PlayerToMove.Mask,
+                    opponentOccupancy: OpponentToMove.Mask,
                     square: rooksQueens.PopLSB(),
-                    HV_pinmask: HV_pinmask,
-                    D_pinmask: D_pinmask,
+                    pinHV: pinHV,
+                    pinD: pinD,
                     checkmask: checkmask,
                     moveListToAddTo: moves
                 );
@@ -792,11 +792,11 @@ namespace Chess
             while (bishopsQueens)
             {
                 Moves.GenerateBishopMoves(
-                    friendlyOccupancy: PlayerToMove.mask,
-                    opponentOccupancy: OpponentToMove.mask,
+                    friendlyOccupancy: PlayerToMove.Mask,
+                    opponentOccupancy: OpponentToMove.Mask,
                     square: bishopsQueens.PopLSB(),
-                    HV_pinmask: HV_pinmask,
-                    D_pinmask: D_pinmask,
+                    pinHV: pinHV,
+                    pinD: pinD,
                     checkmask: checkmask,
                     moveListToAddTo: moves
                 );
@@ -807,21 +807,21 @@ namespace Chess
             while (knights)
             {
                 Moves.GenerateKnightMoves(
-                    friendlyOccupancy: PlayerToMove.mask,
+                    friendlyOccupancy: PlayerToMove.Mask,
                     square: knights.PopLSB(),
                     moveListToAddTo: moves,
-                    pinmask: D_pinmask | HV_pinmask,
+                    pinmask: pinD | pinHV,
                     checkmask: checkmask
                 );
             }
 
             Moves.GeneratePawnMoves(
-                friendlyPieces: PlayerToMove,
-                opponentPieces: OpponentToMove,
-                epSquareBitboard: epSquare,
-                moveListToAddTo: moves,
-                HV_pinmask: HV_pinmask,
-                D_pinmask: D_pinmask,
+                whitePieces: White,
+                blackPieces: Black,
+                epBitboard: epSquare,
+                moveList: moves,
+                pinHV: pinHV,
+                pinD: pinD,
                 checkmask: checkmask,
                 side: ColourToMove
             );
@@ -881,34 +881,46 @@ namespace Chess
 
             Bitboard knightCheckers = Moves.fmt.KNIGHT_MOVES_TABLE[us.KingSquare] & them.Knights;
 
-            // Manually generate pawn checkers instead of using a function
-            Bitboard pawnCheckers = them.Pawns & (
-                us == White ? ((us.King & ~BoardFile.A) << 7 | (us.King & ~BoardFile.H) << 9)
-                            : ((us.King & ~BoardFile.A) >> 9 | (us.King & ~BoardFile.H) >> 7)
-            );
+            // Set directions for generating pawn checkers
+            Direction upLeft, upRight;
+
+            if (us.colour == Colour.White)
+            {
+                upLeft  = Direction.Northwest;
+                upRight = Direction.Northeast;
+            }
+            else
+            {
+                upLeft  = Direction.Southeast;
+                upRight = Direction.Southwest;
+            }
+
+            // Manually generate pawn checkers instead of using a function because the function
+            // accounts for taking pieces instead of simply attacking squares, meaning we can't
+            // use it for this purpose.
+            Bitboard pawnCheckers = them.Pawns & (us.King.Shift(upLeft) | us.King.Shift(upRight));
 
             // For rooks, queens and bishops
             Bitboard queens = GetBitboardFromEnum(Piece.BlackQueen - SideToMove);
 
             Bitboard bishopsQueens = GetBitboardFromEnum(Piece.BlackBishop - SideToMove) ^ queens;
-            Bitboard rooksQueens = GetBitboardFromEnum(Piece.BlackRook - SideToMove) ^ queens;
+            Bitboard rooksQueens   = GetBitboardFromEnum(Piece.BlackRook   - SideToMove) ^ queens;
 
-            Bitboard bishopAttacks = bishopsQueens & Moves.GetBishopMoveBitmask(them.mask, us.KingSquare);
-            Bitboard rookAttacks = rooksQueens & Moves.GetRookMoveBitmask(them.mask, us.KingSquare);
+            Bitboard bishopAttacks = bishopsQueens & Moves.GetBishopMoveBitmask(them.Mask, us.KingSquare);
+            Bitboard rookAttacks = rooksQueens & Moves.GetRookMoveBitmask(them.Mask, us.KingSquare);
             
             checkers = pawnCheckers | knightCheckers;
-            
             checkmask = pawnCheckers | knightCheckers;
             
-            D_pinmask = 0;
-            HV_pinmask = 0;
+            pinD = 0;
+            pinHV = 0;
             
             while (bishopAttacks)
             {
                 int sq = bishopAttacks.PopLSB();
 
                 Bitboard checkray = RayBetween(us.KingSquare, sq);
-                Bitboard blockers = checkray & us.mask;
+                Bitboard blockers = checkray & us.Mask;
                 int numBlockers = blockers.BitCount();
 
                 if (numBlockers == 0)
@@ -918,7 +930,7 @@ namespace Chess
                 }
                 else if (numBlockers == 1)
                 {
-                    D_pinmask |= checkray | 1UL << sq | blockers;
+                    pinD |= checkray | 1UL << sq | blockers;
                 }
             }
 
@@ -927,7 +939,7 @@ namespace Chess
                 int sq = rookAttacks.PopLSB();
 
                 Bitboard checkray = RayBetween(us.KingSquare, sq);
-                Bitboard blockers = checkray & us.mask;
+                Bitboard blockers = checkray & us.Mask;
                 int numBlockers = blockers.BitCount();
 
                 if (numBlockers == 0)
@@ -937,7 +949,7 @@ namespace Chess
                 }
                 else if (numBlockers == 1)
                 {
-                    HV_pinmask |= checkray | 1UL << sq | blockers;
+                    pinHV |= checkray | 1UL << sq | blockers;
                 }
             }
 

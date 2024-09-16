@@ -1,6 +1,6 @@
-using Chess;
+using Types.Nibble;
 using Chess.Utilities;
-using Chess.Bitboards;
+using Types.Bitboards;
 using Chess.Castling;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
@@ -23,7 +23,7 @@ namespace Chess.MoveGen
         }
     }
 
-    public class MagicBitboards
+    public struct MagicBitboards
     {
         public MagicEntry[] ROOK_MAGICS = [
             new(mask: 0x000101010101017E, magic: 0x5080008011400020, shift: 52, offset: 0),
@@ -257,19 +257,12 @@ namespace Chess.MoveGen
         public static Bitboard TraceOutBishopMoves(Bitboard occupancy, int square)
         {
             Bitboard bitmask = 0;
-            
-            /*
-            top_left = fileA | rank8
-            top_right = fileH | rank8
-            bottom_left = fileA | rank1
-            bottom_right = fileH | rank1
-            */
 
-            Bitboard topLeft  = BoardFile.A | BoardRank.Eighth;
-            Bitboard topRight = BoardFile.H | BoardRank.Eighth;
+            Bitboard topLeft  = Files.A | Ranks.Eighth;
+            Bitboard topRight = Files.H | Ranks.Eighth;
             
-            Bitboard bottomLeft  = BoardFile.A | BoardRank.First;
-            Bitboard bottomRight = BoardFile.H | BoardRank.First;
+            Bitboard bottomLeft  = Files.A | Ranks.First;
+            Bitboard bottomRight = Files.H | Ranks.First;
 
             Bitboard bit = 1UL << square;
 
@@ -315,7 +308,7 @@ namespace Chess.MoveGen
         }
     }
 
-    public class FixedMovementTables
+    public struct FixedMovementTables
     {
         public Bitboard[] KING_MOVES_TABLE = new Bitboard[64];
         public Bitboard[] KNIGHT_MOVES_TABLE = new Bitboard[64];
@@ -337,10 +330,10 @@ namespace Chess.MoveGen
                 }
 
                 // If on the left edge, ignore moves that appear on the right edge
-                if ((sq & BoardFile.A) != 0) moves &= ~BoardFile.H;
+                if ((sq & Files.A) != 0) moves &= ~Files.H;
                 
                 // If on the right edge, ignore moves that appear on the left edge
-                if ((sq & BoardFile.H) != 0) moves &= ~BoardFile.A;
+                if ((sq & Files.H) != 0) moves &= ~Files.A;
 
                 KING_MOVES_TABLE[square] = moves;
             }
@@ -359,10 +352,10 @@ namespace Chess.MoveGen
                 }
 
                 // If on the left side, ignore any that go onto the right
-                if ((sq & BoardFile.AB) != 0) moves &= ~BoardFile.GH;
+                if ((sq & Files.AB) != 0) moves &= ~Files.GH;
                 
                 // If on the right side, ignore any that go onto the left
-                if ((sq & BoardFile.GH) != 0) moves &= ~BoardFile.AB;
+                if ((sq & Files.GH) != 0) moves &= ~Files.AB;
 
                 KNIGHT_MOVES_TABLE[square] = moves;
             }
@@ -388,12 +381,25 @@ namespace Chess.MoveGen
         Queen
     }
 
-    public partial class Move // TODO: find out what needs Move to be partial
+    public struct Move // TODO: find out what needs Move to be partial
     {
         public int src; // Where the move starts
         public int dst; // Where the move ends
-        public MoveType type; // Type of move
+        public MoveType type = MoveType.Normal; // Type of move
         public PromoPiece promoPiece = PromoPiece.None;
+
+        public Move(
+            int src,
+            int dst,
+            MoveType type = MoveType.Normal,
+            PromoPiece promoPiece = PromoPiece.None
+        )
+        {
+            this.src = src;
+            this.dst = dst;
+            this.type = type;
+            this.promoPiece = promoPiece;
+        }
 
         public static Move FromString(string moveString, MoveType type = MoveType.Normal, PromoPiece promoPiece = PromoPiece.None)
         {
@@ -405,10 +411,10 @@ namespace Chess.MoveGen
                 throw new Exception("promoted piece and promotion flag must be set together.");
             }
 
-            Regex regex = MoveRegex();
+            Regex regex = new("^[a-h][1-8][a-h][1-8][qbrn]?$");
             string match = regex.Match(moveString).Value;
 
-            static int convert(string value) => "12345678".IndexOf(value[1]) * 8 + "abcdefgh".IndexOf(value[0]);
+            static int convert(string value) => (value[1] - '1') * 8 + value[0] - 'a';
 
             if (match.Length == 5) // promotion move present
             {
@@ -459,9 +465,14 @@ namespace Chess.MoveGen
 
         public override bool Equals([NotNullWhen(true)] object? other)
         {
-            if (other is not Move otherMove) return false;
+            if (other is not Move) return false;
+
+            Move otherMove = (Move)other;
             
-            return src == otherMove.src && dst == otherMove.dst;
+            return src == otherMove.src
+                && dst == otherMove.dst
+                && type == otherMove.type
+                && promoPiece == otherMove.promoPiece;
         }
 
         public override int GetHashCode()
@@ -469,30 +480,12 @@ namespace Chess.MoveGen
             Tuple<int, int> moveTuple = new(src, dst);
             return moveTuple.GetHashCode();
         }
-
-
-        [GeneratedRegex("^[a-h][1-8][a-h][1-8][qbrn]?$")]
-        private static partial Regex MoveRegex();
-
         
-        public static bool operator ==(Move? left, Move? right)
-        {
-            if (left is null) return right is null;
-            if (right is null) return left is null;
-
-            return left.src        == right.src
-                && left.dst        == right.dst
-                && left.type       == right.type
-                && left.promoPiece == right.promoPiece;
-        }
-
-        public static bool operator !=(Move left, Move right)
-        {
-            return !(left == right);
-        }
+        public static bool operator ==(Move left, Move right) =>  left.Equals(right);
+        public static bool operator !=(Move left, Move right) => !left.Equals(right);
     }
 
-    public static class Moves
+    public struct Moves
     {
         public readonly static MagicBitboards mb = new();
         public readonly static FixedMovementTables fmt = new();
@@ -547,9 +540,9 @@ namespace Chess.MoveGen
             }
         }
 
-        public static void GenerateMovesWithOffset(Bitboard moveBitmask, int offset, List<Move> moveListToAddTo, MoveType moveFlag = MoveType.Normal)
+        public static void GenerateMovesWithOffset(Bitboard moveBitmask, int offset, List<Move> moveListToAddTo, MoveType type = MoveType.Normal)
         {
-            if (moveFlag == MoveType.Promotion)
+            if (type == MoveType.Promotion)
             {
                 PromoPiece[] promoPieces = [
                     PromoPiece.Bishop,
@@ -570,7 +563,7 @@ namespace Chess.MoveGen
                             {
                                 src = sq - offset,
                                 dst = sq,
-                                type = moveFlag,
+                                type = type,
                                 promoPiece = promoPieces[i]
                             }
                         );
@@ -587,7 +580,7 @@ namespace Chess.MoveGen
                     {
                         src = sq - offset,
                         dst = sq,
-                        type = moveFlag
+                        type = type
                     };
 
                     moveListToAddTo.Add(move);
@@ -599,8 +592,8 @@ namespace Chess.MoveGen
         public static void GenerateRookMoves(
             Bitboard friendlyOccupancy,
             Bitboard opponentOccupancy,
-            Bitboard D_pinmask,
-            Bitboard HV_pinmask,
+            Bitboard pinD,
+            Bitboard pinHV,
             Bitboard checkmask,
             int square,
             List<Move> moveListToAddTo
@@ -611,10 +604,10 @@ namespace Chess.MoveGen
             moveBitmask &= checkmask;
             
             // Cannot move if on diagonal pinmask
-            if (D_pinmask & 1UL << square) return;
+            if (pinD & 1UL << square) return;
             
             // Can move on an orthogonal pinmask, mask moves against pinmask
-            if (HV_pinmask & 1UL << square) moveBitmask &= HV_pinmask;
+            if (pinHV & 1UL << square) moveBitmask &= pinHV;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -622,8 +615,8 @@ namespace Chess.MoveGen
         public static void GenerateBishopMoves(
             Bitboard friendlyOccupancy,
             Bitboard opponentOccupancy,
-            Bitboard D_pinmask,
-            Bitboard HV_pinmask,
+            Bitboard pinD,
+            Bitboard pinHV,
             Bitboard checkmask,
             int square,
             List<Move> moveListToAddTo
@@ -634,10 +627,10 @@ namespace Chess.MoveGen
             moveBitmask &= checkmask;
             
             // Cannot move if on orthogonal pinmask
-            if (HV_pinmask >> square & 1) return;
+            if (pinHV >> square & 1) return;
             
             // Can move on a diagonal pinmask, mask moves against pinmask
-            if (D_pinmask >> square & 1) moveBitmask &= D_pinmask;
+            if (pinD >> square & 1) moveBitmask &= pinD;
             
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -649,11 +642,11 @@ namespace Chess.MoveGen
             List<Move> moveListToAddTo
         )
         {
-            Bitboard boardMask = friendlyPieces.mask | opponentPieces.mask;
+            Bitboard boardMask = friendlyPieces.Mask | opponentPieces.Mask;
 
             Bitboard moveBitmask = fmt.KING_MOVES_TABLE[square]; // table entry
 
-            moveBitmask &= ~friendlyPieces.mask; // exclude friendly pieces
+            moveBitmask &= ~friendlyPieces.Mask; // exclude friendly pieces
             moveBitmask &= ~opponentPieces.BaseAttackingBitmask(boardMask ^ friendlyPieces.King); // exclude opponent attack rays and protected pieces (combined)
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
@@ -681,277 +674,164 @@ namespace Chess.MoveGen
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
 
-        
-        public struct PawnMoves
-        {
-            public Bitboard LeftAttacks;
-            public Bitboard RightAttacks;
-            public Bitboard SinglePushForward;
-            public Bitboard DoublePushForward;
-        }
-
-        
-        public static PawnMoves GetWhitePawnMoves(
-            Bitboard whiteMask,
-            Bitboard blackMask,
-            Bitboard pawnBitboard,
-            Bitboard epSquareBitboard,
-            Bitboard HV_pinmask,
-            Bitboard D_pinmask,
-            Bitboard checkmask
-        )
-        {
-            PawnMoves moves;
-
-            blackMask |= epSquareBitboard;
-
-            Bitboard boardMask = whiteMask | blackMask;
-            Bitboard noHVpawns = pawnBitboard & ~HV_pinmask;
-            
-            Bitboard diagPinned = noHVpawns & D_pinmask;
-            Bitboard diagUnpinned = noHVpawns & ~D_pinmask;
-
-            Bitboard pinnedLeftAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.A) << 7);
-            Bitboard pinnedRightAttacks = D_pinmask & blackMask & ((diagPinned & ~BoardFile.H) << 9);
-
-            Bitboard regularLeftAttacks = blackMask & ((diagUnpinned & ~BoardFile.A) << 7);
-            Bitboard regularRightAttacks = blackMask & ((diagUnpinned & ~BoardFile.H) << 9);
-
-            moves.LeftAttacks = (pinnedLeftAttacks | regularLeftAttacks) & checkmask;
-            moves.RightAttacks = (pinnedRightAttacks | regularRightAttacks) & checkmask;
-
-            // -----------------------------------------------------------------------------
-            
-            Bitboard noDpawns = pawnBitboard & ~D_pinmask;
-
-            Bitboard HVpinnedPawns = noDpawns & HV_pinmask;
-            Bitboard HVunpinnedPawns = noDpawns & ~HV_pinmask;
-
-            Bitboard normalSinglePushes = ~boardMask & (HVunpinnedPawns << 8);
-            Bitboard normalDoublePushes = ~boardMask & ((BoardRank.Third & normalSinglePushes) << 8);
-
-            Bitboard pinnedSinglePushes = ~boardMask & (HVpinnedPawns << 8) & HV_pinmask;
-            Bitboard pinnedDoublePushes = ~boardMask & ((BoardRank.Third & pinnedSinglePushes) << 8) & HV_pinmask;
-
-            moves.SinglePushForward = (pinnedSinglePushes | normalSinglePushes) & checkmask;
-            moves.DoublePushForward = (pinnedDoublePushes | normalDoublePushes) & checkmask;
-
-            return moves;
-        }
-
-        public static PawnMoves GetBlackPawnMoves(
-            Bitboard blackMask,
-            Bitboard whiteMask,
-            Bitboard pawnBitboard,
-            Bitboard epSquareBitboard,
-            Bitboard HV_pinmask,
-            Bitboard D_pinmask,
-            Bitboard checkmask
-        )
-        {
-            PawnMoves moves;
-
-            whiteMask |= epSquareBitboard;
-
-            Bitboard boardMask = whiteMask | blackMask;
-            Bitboard noHVpawns = pawnBitboard & ~HV_pinmask;
-            
-            Bitboard diagPinned = noHVpawns & D_pinmask;
-            Bitboard diagUnpinned = noHVpawns & ~D_pinmask;
-
-            Bitboard pinnedLeftAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.A) >> 9); // add checks to not shift pawns on edges
-            Bitboard pinnedRightAttacks = D_pinmask & whiteMask & ((diagPinned & ~BoardFile.H) >> 7);
-
-            Bitboard regularLeftAttacks = whiteMask & ((diagUnpinned & ~BoardFile.A) >> 9);
-            Bitboard regularRightAttacks = whiteMask & ((diagUnpinned & ~BoardFile.H) >> 7);
-
-            moves.LeftAttacks = (pinnedLeftAttacks | regularLeftAttacks) & checkmask;
-            moves.RightAttacks = (pinnedRightAttacks | regularRightAttacks) & checkmask;
-
-            // -----------------------------------------------------------------------------
-            
-            Bitboard noDpawns = pawnBitboard & ~D_pinmask;
-
-            Bitboard HVpinnedPawns = noDpawns & HV_pinmask;
-            Bitboard HVunpinnedPawns = noDpawns & ~HV_pinmask;
-
-            Bitboard normalSinglePushes = ~boardMask & (HVunpinnedPawns >> 8);
-            Bitboard normalDoublePushes = ~boardMask & ((BoardRank.Sixth & normalSinglePushes) >> 8);
-
-            Bitboard pinnedSinglePushes = ~boardMask & (HVpinnedPawns >> 8) & HV_pinmask;
-            Bitboard pinnedDoublePushes = ~boardMask & ((BoardRank.Sixth & pinnedSinglePushes) >> 8) & HV_pinmask;
-
-            moves.SinglePushForward = (pinnedSinglePushes | normalSinglePushes) & checkmask;
-            moves.DoublePushForward = (pinnedDoublePushes | normalDoublePushes) & checkmask;
-
-            return moves;
-        }
-
-
-        public static PawnMoves GetPawnMoves(
-            Bitboard friendlyOccupancy,
-            Bitboard opponentOccupancy,
-            Bitboard pawnBitboard,
-            Bitboard epSquareBitboard,
-            Bitboard HV_pinmask,
-            Bitboard D_pinmask,
-            Bitboard checkmask,
-            Colour side
-        )
-        {            
-            if (side == Colour.White)
-            {
-                return GetWhitePawnMoves(
-                    whiteMask: friendlyOccupancy,
-                    blackMask: opponentOccupancy,
-                    pawnBitboard: pawnBitboard,
-                    epSquareBitboard: epSquareBitboard,
-                    HV_pinmask: HV_pinmask,
-                    D_pinmask: D_pinmask,
-                    checkmask: checkmask
-                );
-            }
-            else
-            {
-                return GetBlackPawnMoves(
-                    blackMask: friendlyOccupancy,
-                    whiteMask: opponentOccupancy,
-                    pawnBitboard: pawnBitboard,
-                    epSquareBitboard: epSquareBitboard,
-                    HV_pinmask: HV_pinmask,
-                    D_pinmask: D_pinmask,
-                    checkmask: checkmask
-                );
-            }
-        }
-
-        public static void GenerateWhitePawnMoves(
-            Bitboard whiteMask,
-            Bitboard blackMask,
-            Bitboard pawnBitboard,
-            Bitboard epSquareBitboard,
-            Bitboard HV_pinmask,
-            Bitboard D_pinmask,
-            Bitboard checkmask,
-            List<Move> moveListToAddTo
-        )
-        {
-            PawnMoves pawnMoves = GetWhitePawnMoves(
-                whiteMask: whiteMask,
-                blackMask: blackMask,
-                pawnBitboard: pawnBitboard,
-                epSquareBitboard: epSquareBitboard,
-                HV_pinmask: HV_pinmask,
-                D_pinmask: D_pinmask,
-                checkmask: checkmask
-            );
-
-            // Exclude the en-passant bitboard originally to take down all normal moves
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~BoardRank.Eighth & ~epSquareBitboard, 7, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks & ~BoardRank.Eighth & ~epSquareBitboard, 9, moveListToAddTo);
-
-            // Generate all moves WITH the en passant bitboard only so we can include the en-passant flag
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & epSquareBitboard, 7, moveListToAddTo, moveFlag: MoveType.EnPassant);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks & epSquareBitboard, 9, moveListToAddTo, moveFlag: MoveType.EnPassant);
-
-            // Generate normal pushes
-            GenerateMovesWithOffset(pawnMoves.SinglePushForward & ~BoardRank.Eighth, 8, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.DoublePushForward & ~BoardRank.Eighth, 16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
-
-            // Generate all promotion moves
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks       & BoardRank.Eighth, 7, moveListToAddTo, moveFlag: MoveType.Promotion);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks      & BoardRank.Eighth, 9, moveListToAddTo, moveFlag: MoveType.Promotion);
-            GenerateMovesWithOffset(pawnMoves.SinglePushForward & BoardRank.Eighth, 8, moveListToAddTo, moveFlag: MoveType.Promotion);
-        }
-
-        public static void GenerateBlackPawnMoves(
-            Bitboard whiteMask,
-            Bitboard blackMask,
-            Bitboard pawnBitboard,
-            Bitboard epSquareBitboard,
-            Bitboard HV_pinmask,
-            Bitboard D_pinmask,
-            Bitboard checkmask,
-            List<Move> moveListToAddTo
-        )
-        {
-            PawnMoves pawnMoves = GetBlackPawnMoves(
-                whiteMask: whiteMask,
-                blackMask: blackMask,
-                pawnBitboard: pawnBitboard,
-                epSquareBitboard: epSquareBitboard,
-                HV_pinmask: HV_pinmask,
-                D_pinmask: D_pinmask,
-                checkmask: checkmask
-            );
-
-            // Exclude the en-passant bitboard originally to take down all normal moves
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & ~BoardRank.First & ~epSquareBitboard, -9, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks & ~BoardRank.First & ~epSquareBitboard, -7, moveListToAddTo);
-
-            // Generate all moves WITH the en passant bitboard only so we can include the en-passant flag
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks  & epSquareBitboard, -9, moveListToAddTo, moveFlag: MoveType.EnPassant);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks & epSquareBitboard, -7, moveListToAddTo, moveFlag: MoveType.EnPassant);
-
-            // Generate all single and double pushes
-            GenerateMovesWithOffset(pawnMoves.SinglePushForward & ~BoardRank.First, -8, moveListToAddTo);
-            GenerateMovesWithOffset(pawnMoves.DoublePushForward & ~BoardRank.First, -16, moveListToAddTo, moveFlag: MoveType.PawnDoublePush);
-
-            // Generate all promotion moves
-            GenerateMovesWithOffset(pawnMoves.LeftAttacks       & BoardRank.First, -9, moveListToAddTo, moveFlag: MoveType.Promotion);
-            GenerateMovesWithOffset(pawnMoves.RightAttacks      & BoardRank.First, -7, moveListToAddTo, moveFlag: MoveType.Promotion);
-            GenerateMovesWithOffset(pawnMoves.SinglePushForward & BoardRank.First, -8, moveListToAddTo, moveFlag: MoveType.Promotion);
-        }
 
         public static void GeneratePawnMoves(
-            PieceSet friendlyPieces,
-            PieceSet opponentPieces,
-            Bitboard epSquareBitboard,
-            Bitboard HV_pinmask,
-            Bitboard D_pinmask,
+            Colour side,
+            PieceSet whitePieces,
+            PieceSet blackPieces,
+            Bitboard epBitboard,
             Bitboard checkmask,
-            List<Move> moveListToAddTo,
-            Colour side
+            Bitboard pinHV,
+            Bitboard pinD,
+            List<Move> moveList
         )
         {
+            PieceSet us, them;
+            Direction up, upLeft, upRight, downLeft, downRight;
+            Bitboard promotionRank, enPassantRank, doublePushRank;
+            int[] pawnShifts;
+            
             if (side == Colour.White)
             {
-                GenerateWhitePawnMoves(
-                    whiteMask: friendlyPieces.mask,
-                    blackMask: opponentPieces.mask,
-                    pawnBitboard: friendlyPieces.Pawns,
-                    epSquareBitboard: epSquareBitboard,
-                    HV_pinmask: HV_pinmask,
-                    D_pinmask: D_pinmask,
-                    checkmask: checkmask,
-                    moveListToAddTo: moveListToAddTo
-                );
+                us   = whitePieces;
+                them = blackPieces;
+
+                up      = Direction.North;
+                upLeft  = Direction.Northwest;
+                upRight = Direction.Northeast;
+
+                downLeft = Direction.Southwest;
+                downRight = Direction.Southeast;
+
+                promotionRank  = Ranks.Eighth;
+                enPassantRank  = Ranks.Sixth;
+                doublePushRank = Ranks.Third;
+
+                pawnShifts = [7, 8, 9, 16];
             }
             else
             {
-                GenerateBlackPawnMoves(
-                    whiteMask: opponentPieces.mask,
-                    blackMask: friendlyPieces.mask,
-                    pawnBitboard: friendlyPieces.Pawns,
-                    epSquareBitboard: epSquareBitboard,
-                    HV_pinmask: HV_pinmask,
-                    D_pinmask: D_pinmask,
-                    checkmask: checkmask,
-                    moveListToAddTo: moveListToAddTo
+                us   = blackPieces;
+                them = whitePieces;
+
+                up      = Direction.South;
+                upLeft  = Direction.Southwest;
+                upRight = Direction.Southeast;
+
+                downLeft  = Direction.Northwest;
+                downRight = Direction.Northeast;
+
+                promotionRank  = Ranks.First;
+                enPassantRank  = Ranks.Third;
+                doublePushRank = Ranks.Sixth;
+
+                pawnShifts = [-9, -8, -7, -16];
+            }
+
+            Bitboard pawns = us.Pawns;
+            Bitboard empty = ~(us.Mask | them.Mask);
+            Bitboard enemy = them.Mask;
+
+            Bitboard unpinnedPawns = pawns & ~pinD  & ~pinHV;
+            Bitboard pinnedHVpawns = pawns & ~pinD  &  pinHV;
+            Bitboard pinnedDpawns  = pawns & ~pinHV &  pinD;
+
+            // Pawns pinned diagonally can't move forward and pawns pinned
+            // orthogonally have to be restricted to only move on the pinmask.
+            Bitboard singlePushes = empty & (unpinnedPawns.Shift(up) | pinnedHVpawns.Shift(up) & pinHV);
+
+            // Only pawns (after being pushed) on the (relative) third rank
+            // would have gone from the (relative) second rank, so only shift
+            // those upwards and check if there are any spaces in the way.
+            //
+            // The third rank is also the en-passant rank, so we can reuse
+            // that here.
+            Bitboard doublePushes = empty & (singlePushes & doublePushRank).Shift(up);
+
+            // Add moves to move list - doing single pushes
+            // (Add to checkmask first so that double pushes
+            // can be used to block checks)
+            GenerateMovesWithOffset(checkmask & singlePushes & ~promotionRank, pawnShifts[1], moveList);
+            GenerateMovesWithOffset(checkmask & singlePushes &  promotionRank, pawnShifts[1], moveList, type: MoveType.Promotion);
+
+            // Add moves to move list - doing double pushes (at start)
+            GenerateMovesWithOffset(checkmask & doublePushes, pawnShifts[3], moveList, type: MoveType.PawnDoublePush);
+
+            // Pawns pinned orthogonally can't capture pieces and pawns pinned
+            // diagonally must only be able to take pieces on the pinmask.
+            Bitboard leftAttacks  = checkmask & enemy & (unpinnedPawns.Shift(upLeft)  | pinnedDpawns.Shift(upLeft)  & pinD);
+            Bitboard rightAttacks = checkmask & enemy & (unpinnedPawns.Shift(upRight) | pinnedDpawns.Shift(upRight) & pinD);
+
+            // Add moves to move list - doing left attacks
+            GenerateMovesWithOffset(leftAttacks & ~promotionRank, pawnShifts[0], moveList);
+            GenerateMovesWithOffset(leftAttacks &  promotionRank, pawnShifts[0], moveList, type: MoveType.Promotion);
+
+            // Add moves to move list - doing right attacks
+            GenerateMovesWithOffset(rightAttacks & ~promotionRank, pawnShifts[2], moveList);
+            GenerateMovesWithOffset(rightAttacks &  promotionRank, pawnShifts[2], moveList, type: MoveType.Promotion);
+
+            // -----------------------------------------------------------------------------------------------------------------
+
+            // If there's no en-passant square, return here
+            if (!epBitboard) return;
+
+            int epSquare = epBitboard.IndexLSB();
+            int epPawn   = epSquare - pawnShifts[1];
+            
+            Bitboard epMask = epBitboard | 1UL << epPawn;
+
+            // If the en-passant square and the enemy pawn are not on
+            // the checkmask, then en-passant is not available.
+            if (!(checkmask & epMask)) return;
+
+            int kingSquare = us.KingSquare;
+            Bitboard kingMask = us.King & Ranks.ContainsPosition(epPawn);
+            
+            Bitboard enemyQueenRook = them.Queens | them.Rooks;
+
+            bool isPossiblePin = (bool)kingMask && (bool)enemyQueenRook;
+
+            // Pawns pinned orthogonally cannot take any pieces because
+            // they would leave their pinmask.
+            Bitboard pawnsAttackingEP = pawns & ~pinnedHVpawns & (epBitboard.Shift(downLeft) | epBitboard.Shift(downRight));
+
+            while (pawnsAttackingEP)
+            {
+                int from = pawnsAttackingEP.PopLSB();
+                int to = epSquare;
+                
+                // If the pawn is pinned but the en-passant square is
+                // not in the pinmask, the move is illegal, so skip it.
+                if (1UL << from & pinD && !(pinD & 1UL << epSquare)) continue;
+
+                Bitboard connectingPawns = 1UL << epPawn | 1UL << from;
+
+                // If the en-passant would expose a check on the king,
+                // the en-passant move is illegal, so disqualify it.
+                if (isPossiblePin && GetRookMoveBitmask(~empty & ~connectingPawns, kingSquare) & enemyQueenRook) break;
+
+                moveList.Add(
+                    new Move()
+                    {
+                        src = from,
+                        dst = to,
+                        type = MoveType.EnPassant
+                    }
                 );
             }
         }
+
 
         public static void GenerateCastlingMoves(
             Colour sideToMove,
             PieceSet friendlyPieces,
             PieceSet opponentPieces,
-            int castlingRights,
+            Nibble castlingRights,
             List<Move> moveListToAddTo
         )
         {
-            int KSC = sideToMove == Colour.White ? 0b1000 : 0b0010;
-            int QSC = sideToMove == Colour.White ? 0b0100 : 0b0001;
+            int KSC = 0b1000 >> 2 * (int)sideToMove;
+            int QSC = 0b0100 >> 2 * (int)sideToMove;
 
             if (CastlingRights.CanCastleKingside(sideToMove, friendlyPieces, opponentPieces)
                 && (castlingRights & KSC) != 0)
@@ -1006,30 +886,43 @@ namespace Chess.MoveGen
 
 namespace Chess.Castling
 {
-    public static class CastlingRights
+    public struct CastlingRights
     {
-        public static Bitboard WhiteQSC = 0b00001110UL;
+        public static Bitboard OccupyingWhiteQSC = 0b00001110UL;
+        public static Bitboard MovementWhiteQSC  = 0b00001100UL;
         public static Bitboard WhiteKSC = 0b01100000UL;
-        public static Bitboard BlackQSC = 0b00001110UL << 56;
-        public static Bitboard BlackKSC = 0b01100000UL << 56;
 
-        public static bool CanCastle(Bitboard castlingRegion, PieceSet friendlyPieces, PieceSet opponentPieces)
+        public static Bitboard OccupyingBlackQSC = OccupyingWhiteQSC << 56;
+        public static Bitboard MovementBlackQSC  = MovementWhiteQSC  << 56;
+        public static Bitboard BlackKSC = WhiteKSC << 56;
+
+        public static bool CanCastle(Bitboard occpuyingRegion, Bitboard movementRegion, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
-            Bitboard boardMask = friendlyPieces.mask | opponentPieces.mask;
-            Bitboard opponentAttacks = opponentPieces.AttackingBitmask(friendlyPieces.mask);
+            Bitboard boardMask = friendlyPieces.Mask | opponentPieces.Mask;
+            Bitboard opponentAttacks = opponentPieces.AttackingBitmask(friendlyPieces.Mask);
 
-            return !(opponentAttacks & castlingRegion)
-                && !(boardMask       & castlingRegion);
+            return !(opponentAttacks & movementRegion)
+                && !(boardMask       & occpuyingRegion);
         }
 
         public static bool CanCastleQueenside(Colour sideToMove, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
-            return CanCastle(sideToMove == Colour.White ? WhiteQSC : BlackQSC, friendlyPieces, opponentPieces);
+            return CanCastle(
+                sideToMove == Colour.White ? OccupyingWhiteQSC : OccupyingBlackQSC,
+                sideToMove == Colour.White ? MovementWhiteQSC : MovementBlackQSC,
+                friendlyPieces,
+                opponentPieces
+            );
         }
 
         public static bool CanCastleKingside(Colour sideToMove, PieceSet friendlyPieces, PieceSet opponentPieces)
         {
-            return CanCastle(sideToMove == Colour.White ? WhiteKSC : BlackKSC, friendlyPieces, opponentPieces);
+            return CanCastle(
+                sideToMove == Colour.White ? WhiteKSC : BlackKSC,
+                sideToMove == Colour.White ? WhiteKSC : BlackKSC,
+                friendlyPieces,
+                opponentPieces
+            );
         }
     }
 }

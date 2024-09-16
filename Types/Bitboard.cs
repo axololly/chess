@@ -1,8 +1,20 @@
 using System.Numerics;
 using Chess.Utilities;
 
-namespace Chess.Bitboards
+namespace Types.Bitboards
 {
+    public enum Direction
+    {
+        North,
+        South,
+        Northeast,
+        Southeast,
+        Northwest,
+        Southwest,
+        East,
+        West
+    }
+
     public struct Bitboard
     {
         public ulong bitboard;
@@ -41,6 +53,9 @@ namespace Chess.Bitboards
         
         public static bool operator !=(Bitboard? bb1, Bitboard? bb2)
             => !Equals(bb1, bb2);
+        
+        public static bool operator true (Bitboard bb) => bb != 0;
+        public static bool operator false(Bitboard bb) => bb == 0;
 
         public override int GetHashCode()
             => (int)bitboard;
@@ -62,6 +77,32 @@ namespace Chess.Bitboards
             bitboard &= bitboard - 1;
             
             return LSB;
+        }
+
+        public int IndexLSB()
+        {
+            if (bitboard == 0) throw new Exception("cannot read LSB off of an empty bitboard.");
+
+            return BitOperations.TrailingZeroCount(bitboard);
+        }
+
+        public Bitboard Shift(Direction direction)
+        {
+            return direction switch
+            {
+                Direction.North => this << 8,
+                Direction.South => this >> 8,
+
+                Direction.East => (this & ~Files.H) << 1,
+                Direction.West => (this & ~Files.A) >> 1,
+
+                Direction.Northeast => (this & ~Files.H) << 9,
+                Direction.Northwest => (this & ~Files.A) << 7,
+                Direction.Southeast => (this & ~Files.H) >> 7,
+                Direction.Southwest => (this & ~Files.A) >> 9,
+
+                _ => throw new Exception($"invalid Direction enum \"{direction}\"")
+            };
         }
 
         public int BitCount() => BitOperations.PopCount(bitboard);

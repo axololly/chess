@@ -1,6 +1,6 @@
 using Chess;
 using Chess.MoveGen;
-using Chess.Bitboards;
+using Types.Bitboards;
 using Chess.Utilities;
 using Chess.Perft;
 using System.Text;
@@ -76,7 +76,7 @@ class Program
 
                 if (expected != returned)
                 {
-                    throw new Exception($"incorrect amount returned. Failed depth: {depth}");
+                    throw new Exception($"incorrect amount returned - expected {expected} and got back {returned}. [Failed depth {depth}]");
                 }
 
                 double time = (double)sw.ElapsedMilliseconds / 1000;
@@ -132,8 +132,8 @@ class Program
         if (board1.Black.King     !=  board2.Black.King)     return 13;
 
         if (board1.checkmask      !=  board2.checkmask)      return 14;
-        if (board1.D_pinmask      !=  board2.D_pinmask)      return 15;
-        if (board1.HV_pinmask     !=  board2.HV_pinmask)     return 16;
+        if (board1.pinD           !=  board2.pinD)           return 15;
+        if (board1.pinHV          !=  board2.pinHV)          return 16;
 
         if (board1.epSquare       !=  board2.epSquare)       return 17;
         if (board1.checkers       !=  board2.checkers)       return 18;
@@ -231,16 +231,6 @@ class Program
 
     static void Main()
     {
-        // RunTests(4);
-
-        Board board = new("1rb1qbn1/ppppp1p1/6k1/P7/P6p/B1Pr1P1P/3P2PN/RN1Q1KR1 w - - 0 1");
-
-        string[] S = ["d1e2", "g6h5", "g2g4"];
-
-        foreach (string x in S) board.MakeMove(Move.FromString(x));
-
-        // Perft.MoveByMovePerft(board, 4 - S.Length);
-
-        Console.WriteLine(board.FEN);
+        RunTests(4);
     }
 }
