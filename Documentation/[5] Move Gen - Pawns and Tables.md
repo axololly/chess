@@ -204,7 +204,7 @@ The only difference is swapping the `pawns` variable with `singlePushes & rank3`
 
 And that's it. That's everything.
 
-### Complete code sample
+### Complete code sample for White's pawns
 
 ```py
 leftAttacks  = occupancy & ((pawns & ~fileA) << 7)
@@ -213,3 +213,16 @@ rightAttacks = occupancy & ((pawns & ~fileH) << 9)
 singlePushes = ~occupancy & (pawns << 8)
 doublePushes = ~occupancy & ((singlePushes & rank3) << 8)
 ```
+
+### What about Black's pawns?
+
+The offsets for moving from a square position are this:
+```
++7  +8  +9
+-1   .  +1
+-9  -8  -7
+```
+
+So you can see that to do a left attack for white, we add 7 to the current position (current bit shifted left 7), but a left attack for black is vertically flipped, so we subtract 9 for the current position (current bit shifted down by 9).
+
+With this information, it should be easy to deduce opposing code for mapping out Black's pawn moves.
