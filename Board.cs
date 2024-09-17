@@ -91,7 +91,7 @@ namespace Chess
     public class BoardInfo
     {
         public Bitboard EPsquare;
-        // public int halftimeCounter;
+        public uint halfMoveClock;
         public Nibble castlingRights;
         public Piece capturedPiece = Piece.Empty;
         
@@ -106,6 +106,7 @@ namespace Chess
         public PieceSet White;
         public PieceSet Black;
         public int moveCounter;
+        public uint halfMoveClock;
         public Nibble castlingRights; // 0b1111 => KQkq
         public Stack<Move> moveHistory = new();
         public Stack<BoardInfo> boardHistory = new();
@@ -142,9 +143,8 @@ namespace Chess
             string sideToMoveString   =  FENstringSections[1];
             string FENcastlingRights  =  FENstringSections[2];
             string epSquareString     =  FENstringSections[3];
-            // string halftimeCounter    =  FENstringSections[4];
+            string halftimeCounter    =  FENstringSections[4];
             string currentDoubleMove  =  FENstringSections[5];
-
 
             // Reverse FEN string to have a reversed board format
             boardFEN = string.Join("/", boardFEN.Split('/').Reverse());
@@ -220,7 +220,6 @@ namespace Chess
                 cursor++;
             }
 
-
             // Set move counter based on side to move and current double move
             int sideToMoveIncrease = sideToMoveString switch
             {
@@ -234,7 +233,6 @@ namespace Chess
             }
 
             moveCounter = currentDoubleMoveNumber * 2 + sideToMoveIncrease;
-
 
             // Set castling rights
             castlingRights = 0;
@@ -253,6 +251,13 @@ namespace Chess
                 }
             }
 
+            // Set the halftime counter
+            if (!uint.TryParse(halftimeCounter, out uint HTC))
+            {
+                throw new Exception("half time counter was not a positive integer.");
+            }
+
+            halfMoveClock = HTC;
 
             // Set an en-passant square
             if (epSquareString != "-")
@@ -266,22 +271,6 @@ namespace Chess
             }
 
             UpdatePinsAndCheckers();
-
-            /*
-            boardHistory.Push(
-                new BoardInfo()
-                {
-                    castlingRights = castlingRights,
-                    EPsquare = epSquare,
-                    capturedPiece = Piece.Empty,
-                    checkmask = checkmask,
-                    pinD = pinD,
-                    pinHV = pinHV
-                }
-            );
-            */
-
-            // TODO: Set halftime move counter
         }
 
 
@@ -404,6 +393,8 @@ namespace Chess
                         // Get the piece that was captured
                         pieceCaptured = BoardArray[move.dst];
 
+                        // If the piece captured was a rook, remove castling rights
+                        // for whatever side it was taken from
                         if (pieceCaptured == Piece.WhiteRook)
                         {
                             if (move.dst == 0) castlingRights &= ~0b0100;
@@ -413,7 +404,7 @@ namespace Chess
                         if (pieceCaptured == Piece.BlackRook)
                         {
                             if (move.dst == 56) castlingRights &= ~0b0001;
-                            if (move.dst == 63) castlingRights &= ~0b0010; // issue somewhere here with castling and shit
+                            if (move.dst == 63) castlingRights &= ~0b0010;
                         }
 
                         // Update the captured piece's bitboard
@@ -574,7 +565,7 @@ namespace Chess
                         if (move.dst == 63) castlingRights &= ~0b0010; // issue somewhere here with castling and shit
                     }
 
-                    // Update bitboards
+                    // Update both sets of bitboards
                     bb = GetBitboardFromEnum(pieceToMove);
                     bb ^= 1UL << move.src;
                     SetBitboardFromEnum(pieceToMove, bb);
@@ -589,8 +580,18 @@ namespace Chess
                     throw new Exception($"move flag \"{move.type}\" on move {move} unaccounted for.");
             }
 
+            // If the move played was a promotion move (pawn was promoted) or a piece
+            // on the board was captured, reset the halfmove clock
+            if (move.type == MoveType.Promotion || boardInfo.capturedPiece != Piece.Empty) halfMoveClock = 0;
+
+            // Otherwise, increase the halfmove clock
+            else halfMoveClock++;
+            
             boardHistory.Push(boardInfo);
+            
             UpdatePinsAndCheckers();
+
+            CheckForRepetitions();
         }
 
         public void UndoMove()
@@ -601,11 +602,12 @@ namespace Chess
             Move previousMove = moveHistory.Pop();
             BoardInfo previousBoardInfo = boardHistory.Pop();
 
-            checkmask = previousBoardInfo.checkmask;
-            pinD = previousBoardInfo.pinD;
-            pinHV = previousBoardInfo.pinHV;
-            castlingRights = previousBoardInfo.castlingRights;
-            epSquare = previousBoardInfo.EPsquare;
+            checkmask       =  previousBoardInfo.checkmask;
+            pinD            =  previousBoardInfo.pinD;
+            pinHV           =  previousBoardInfo.pinHV;
+            castlingRights  =  previousBoardInfo.castlingRights;
+            epSquare        =  previousBoardInfo.EPsquare;
+            halfMoveClock   =  previousBoardInfo.halfMoveClock;
             
             moveCounter--; // Decrease move counter
 
@@ -1027,6 +1029,21 @@ namespace Chess
             return string.Join("\n", board);
         }
 
+        public void CheckForRepetitions()
+        {
+            Dictionary<Move, int> pastMoves = new();
+
+            foreach (Move pastMove in moveHistory)
+            {
+                pastMoves[pastMove] = pastMoves.ContainsKey(pastMove) ? pastMoves[pastMove] + 1 : 1;
+
+                if (pastMoves.ContainsValue(3))
+                {
+                    throw new Exception($"repeated position 3 times. Move that triggered this: {pastMove}");
+                }
+            }
+        }
+
         private string GetFEN()
         {
             string[] linesOfFEN = new string[8];
@@ -1043,7 +1060,7 @@ namespace Chess
 
                     if (BoardArray[index] == Piece.Empty)
                     {
-                        emptySpaces += 1;
+                        emptySpaces++;
                     }
                     else
                     {
@@ -1126,21 +1143,12 @@ namespace Chess
             }
 
             // Add halftime move counter
-            FEN += " 0"; // TODO: needs changing
+            FEN += $" {halfMoveClock}";
 
             // Add fulltime move counter
             FEN += " " + Convert.ToString((moveCounter - SideToMove) / 2);
             
             return FEN;
-        }
-
-        public Board Copy()
-        {
-            Board next = new(FEN);
-
-            
-
-            return next;
         }
     }
 }

@@ -25,15 +25,13 @@ namespace Chess.Perft
             return count;
         }
 
-        public static ulong MoveByMovePerft(Board board, int depth, bool bulk = true, string pauseBeforeThisMove = "")
+        public static ulong MoveByMovePerft(Board board, int depth, bool bulk = true)
         {
             var nextMoves = board.GenerateLegalMoves();
             ulong total = 0;
 
             foreach (Move next in nextMoves)
-            {
-                if (next.ToString() == pauseBeforeThisMove) return 0;
-                
+            {                
                 board.MakeMove(next);
 
                 ulong nodes = BasePerftTest(board, depth - 1, bulk);
@@ -45,6 +43,38 @@ namespace Chess.Perft
             }
 
             Console.WriteLine($"Total: {total}");
+
+            return total;
+        }
+
+        public static ulong TimedMoveByMovePerft(Board board, int depth, bool bulk = true)
+        {
+            var nextMoves = board.GenerateLegalMoves();
+            ulong total = 0;
+            
+            Stopwatch sw = new();
+            
+            long totalMilliseconds = 0;
+
+            foreach (Move next in nextMoves)
+            {
+                board.MakeMove(next);
+
+                sw.Reset();
+
+                sw.Start();
+                ulong nodes = BasePerftTest(board, depth - 1, bulk);
+                sw.Stop();
+
+                total += nodes;
+                totalMilliseconds += sw.ElapsedMilliseconds;
+                
+                Console.WriteLine($"{next} - {nodes}  [taken {sw.ElapsedMilliseconds}ms, {nodes / ((double)sw.ElapsedMilliseconds / 1000)} nps]");
+
+                board.UndoMove();
+            }
+
+            Console.WriteLine($"\nTotal nodes: {total}\nTotal time: {totalMilliseconds / 1000}s\nTotal nps: {total / ((double)totalMilliseconds / 1000)}");
 
             return total;
         }
