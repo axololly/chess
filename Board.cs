@@ -1,5 +1,6 @@
 using Chess.Utilities;
 using Chess.MoveGen;
+using Chess.Bitmasks;
 using Types.Nibble;
 using Types.Bitboards;
 
@@ -31,31 +32,35 @@ namespace Chess
             Bitboard T;
 
             T = Bishops | Queens;
-            while (T) attacks |= Moves.GetBishopMoveBitmask(occupancy, T.PopLSB());
+            while (T) attacks |= Bitmask.ForBishop(occupancy, T.PopLSB());
 
             T = Rooks | Queens;
-            while (T) attacks |= Moves.GetRookMoveBitmask(occupancy, T.PopLSB());
+            while (T) attacks |= Bitmask.ForRook(occupancy, T.PopLSB());
 
             T = Knights;
-            while (T) attacks |= Moves.fmt.KNIGHT_MOVES_TABLE[T.PopLSB()];
+            while (T) attacks |= Bitmask.ForKnight(0, T.PopLSB());
 
-            attacks |= Moves.fmt.KING_MOVES_TABLE[KingSquare]; // Get king moves from table
 
-            Bitboard pawnLeftAttacks;
-            Bitboard pawnRightAttacks;
+            attacks |= Bitmask.ForKing(
+                enemyOrEmpty: Bitboard.Filled,
+                opponentAttacks: 0,
+                square: KingSquare
+            );
+
+            Direction upLeft, upRight;
 
             if (colour == Colour.White)
             {
-                pawnLeftAttacks  = (Pawns & ~Files.A) << 7;
-                pawnRightAttacks = (Pawns & ~Files.H) << 9;
+                upLeft  = Direction.Northwest;
+                upRight = Direction.Northeast;
             }
             else
             {
-                pawnLeftAttacks  = (Pawns & ~Files.A) >> 9;
-                pawnRightAttacks = (Pawns & ~Files.H) >> 7;
+                upLeft  = Direction.Southeast;
+                upRight = Direction.Southwest;
             }
 
-            attacks |= pawnLeftAttacks | pawnRightAttacks;
+            attacks |= Pawns.Shift(upLeft) | Pawns.Shift(upRight);
 
             return attacks;
         }
@@ -88,7 +93,7 @@ namespace Chess
         Empty
     }
 
-    public class BoardInfo
+    public struct BoardInfo
     {
         public Bitboard EPsquare;
         public uint halfMoveClock;
@@ -98,6 +103,8 @@ namespace Chess
         public Bitboard checkmask;
         public Bitboard pinD;
         public Bitboard pinHV;
+
+        public BoardInfo() {}
     }
 
     public class Board
@@ -892,14 +899,14 @@ namespace Chess
 
             if (file1 == file2 || rank1 == rank2) // same row or file
             {
-                return Moves.GetRookMoveBitmask(1UL << square2, square1)
-                     & Moves.GetRookMoveBitmask(1UL << square1, square2);
+                return Bitmask.ForRook(1UL << square2, square1)
+                     & Bitmask.ForRook(1UL << square1, square2);
             }
 
             if (Math.Abs(file1 - file2) == Math.Abs(rank1 - rank2))
             {
-                return Moves.GetBishopMoveBitmask(1UL << square2, square1)
-                     & Moves.GetBishopMoveBitmask(1UL << square1, square2);
+                return Bitmask.ForBishop(1UL << square2, square1)
+                     & Bitmask.ForBishop(1UL << square1, square2);
             }
 
             throw new Exception($"cannot form ray between squares \"{square1}\" and \"{square2}\" becuase they are not on the same line.");
@@ -911,7 +918,7 @@ namespace Chess
             PieceSet us = PlayerToMove;
             PieceSet them = OpponentToMove;
 
-            Bitboard knightCheckers = Moves.fmt.KNIGHT_MOVES_TABLE[us.KingSquare] & them.Knights;
+            Bitboard knightCheckers = Bitmask.ForKnight(0, us.KingSquare) & them.Knights;
 
             // Set directions for generating pawn checkers
             Direction upLeft, upRight;
@@ -938,8 +945,8 @@ namespace Chess
             Bitboard bishopsQueens = GetBitboardFromEnum(Piece.BlackBishop - SideToMove) ^ queens;
             Bitboard rooksQueens   = GetBitboardFromEnum(Piece.BlackRook   - SideToMove) ^ queens;
 
-            Bitboard bishopAttacks = bishopsQueens & Moves.GetBishopMoveBitmask(them.Mask, us.KingSquare);
-            Bitboard rookAttacks = rooksQueens & Moves.GetRookMoveBitmask(them.Mask, us.KingSquare);
+            Bitboard bishopAttacks = bishopsQueens & Bitmask.ForBishop(them.Mask, us.KingSquare);
+            Bitboard rookAttacks = rooksQueens & Bitmask.ForRook(them.Mask, us.KingSquare);
             
             checkers = pawnCheckers | knightCheckers;
             checkmask = pawnCheckers | knightCheckers;

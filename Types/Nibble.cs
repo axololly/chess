@@ -33,6 +33,8 @@ namespace Types.Nibble
         public static implicit operator Nibble(ulong x) => new((byte)(x & 15));
         public static implicit operator Nibble(byte x)  => new((byte)(x & 15));
 
+        public static implicit operator bool  (Nibble n) => n.value > 0;
+
         public static implicit operator byte  (Nibble n) => n.value;
         public static implicit operator int   (Nibble n) => n.value;
         public static implicit operator long  (Nibble n) => n.value;
