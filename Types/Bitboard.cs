@@ -78,7 +78,7 @@ namespace Types.Bitboards
             return LSB;
         }
 
-        public int IndexLSB()
+        public int ReadLSB()
         {
             if (bitboard == 0) throw new Exception("cannot read LSB off of an empty bitboard.");
 

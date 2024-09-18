@@ -386,7 +386,7 @@ namespace Chess.MoveGen
             // If there's no en-passant square, return here
             if (!epBitboard) return;
 
-            int epSquare = epBitboard.IndexLSB();
+            int epSquare = epBitboard.ReadLSB();
             int epPawn   = epSquare - pawnShifts[1];
             
             Bitboard epMask = epBitboard | 1UL << epPawn;

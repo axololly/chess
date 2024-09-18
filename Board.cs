@@ -22,8 +22,7 @@ namespace Chess
         public int KingSquare { get {
             if (!King) throw new Exception($"{colour} king bitboard is not present.");
             
-            var T = King;
-            return T.PopLSB();
+            return King.ReadLSB();
         } }
 
         public Bitboard BaseAttackingBitmask(Bitboard occupancy)
