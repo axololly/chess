@@ -6,6 +6,9 @@ using Chess.Castling;
 using Chess.Bitmasks;
 using Chess.Tables;
 
+using Chess960;
+using Chess960.Castling;
+
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
@@ -16,6 +19,7 @@ namespace Chess.MoveGen
         Normal,
         PawnDoublePush,
         Castling,
+        Castling960,
         EnPassant,
         Promotion
     }
@@ -96,7 +100,15 @@ namespace Chess.MoveGen
 
         public override string ToString()
         {
-            static string convert(int index) => "abcdefgh"[index % 8].ToString() + "12345678"[index / 8].ToString();
+            string convert(int index)
+            {
+                if (index < 0 || index > 63)
+                {
+                    throw new Exception($"square index '{index}' cannot be translated to a square value.");
+                }
+
+                return "abcdefgh"[index % 8].ToString() + "12345678"[index / 8].ToString();
+            }
 
             string promoPieceString = promoPiece switch
             {
@@ -490,6 +502,59 @@ namespace Chess.MoveGen
                 };
 
                 moveListToAddTo.Add(move);
+            }
+        }
+
+        public static void GenerateCastling960Moves(Board960 board, List<Move> moveList)
+        {
+            if (Castling960.CanCastleQueenside(board))
+            {
+                int dest = board.rookStarts[2 * (int)board.ColourToMove + 1];
+                
+                // Make sure that we cannot castle if
+                // there is no destination
+                if (dest == -1) return;
+
+                moveList.Add(new Move(){
+                    src = board.PlayerToMove.KingSquare,
+                /*
+                    . . . . . . x .  < 62
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . x .  < 6
+                */
+                    dst = dest,
+                    type = MoveType.Castling960
+                });
+            }
+
+            if (Castling960.CanCastleKingside(board))
+            {
+                int dest = board.rookStarts[2 * (int)board.ColourToMove];
+                
+                // Make sure that we cannot castle if
+                // there is no destination
+                if (dest == -1) return;
+
+                moveList.Add(new Move(){
+                    src = board.PlayerToMove.KingSquare,
+                /*
+                    . . x . . . . .  < 58
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . . . . . . .
+                    . . x . . . . .  < 2
+                */
+                    dst = dest,
+                    type = MoveType.Castling960
+                });
             }
         }
     }

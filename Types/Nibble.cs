@@ -42,7 +42,6 @@ namespace Types.Nibble
         public static implicit operator uint  (Nibble n) => n.value;
 
         public override int GetHashCode() => value;
-        public override string ToString() => $"{value}";
         public override bool Equals([NotNullWhen(true)] object? obj) => obj != null && obj.GetHashCode() == GetHashCode();
 
         public string AsBinary()
@@ -52,6 +51,24 @@ namespace Types.Nibble
             for (int i = 3; i > -1; i--) result += $"{value >> i & 1}";
             
             return "0b" + result;
+        }
+
+        public override string ToString()
+        {
+            if (value == 0) return "-";
+            
+            string result = "";
+            char[] rights = ['q', 'k', 'Q', 'K'];
+
+            for (int i = 3; i > -1; i--)
+            {
+                if ((value >> i & 1) == 1)
+                {
+                    result += rights[i];
+                }
+            }
+
+            return result;
         }
     }
 }

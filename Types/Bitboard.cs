@@ -85,6 +85,13 @@ namespace Types.Bitboards
             return BitOperations.TrailingZeroCount(bitboard);
         }
 
+        public int ReadMSB()
+        {
+            if (bitboard == 0) throw new Exception("cannot read MSB off of an empty bitboard.");
+
+            return 63 - BitOperations.LeadingZeroCount(bitboard);
+        }
+
         public Bitboard Shift(Direction direction)
         {
             return direction switch
