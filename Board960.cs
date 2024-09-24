@@ -1,112 +1,14 @@
+using Chess;
 using Chess.Utilities;
 using Chess.MoveGen;
 using Chess.Bitmasks;
 using Types.Bitboards;
 using Types.CastlingRights;
+using Chess960.Castling;
 
-namespace Chess
+namespace Chess960
 {
-    public struct PieceSet(Colour colour)
-    {
-        public Colour colour = colour;
-
-        public Bitboard Bishops = 0;
-        public Bitboard Knights = 0;
-        public Bitboard Rooks = 0;
-        public Bitboard Pawns = 0;
-        public Bitboard Queens = 0;
-        public Bitboard King = 0;
-
-        public Bitboard Mask { get { return Bishops | Knights | Rooks | Pawns | Queens | King; } }
-
-        public int KingSquare { get {
-            if (!King) throw new Exception($"{colour} king bitboard is not present.");
-            
-            return King.ReadLSB();
-        } }
-
-        public Bitboard BaseAttackingBitmask(Bitboard occupancy)
-        {
-            Bitboard attacks = 0;
-            Bitboard T;
-
-            T = Bishops | Queens;
-            while (T) attacks |= Bitmask.ForBishop(occupancy, T.PopLSB());
-
-            T = Rooks | Queens;
-            while (T) attacks |= Bitmask.ForRook(occupancy, T.PopLSB());
-
-            T = Knights;
-            while (T) attacks |= Bitmask.ForKnight(0, T.PopLSB());
-
-
-            attacks |= Bitmask.ForKing(
-                enemyOrEmpty: Bitboard.Filled,
-                opponentAttacks: 0,
-                square: KingSquare
-            );
-
-            Direction upLeft, upRight;
-
-            if (colour == Colour.White)
-            {
-                upLeft  = Direction.Northwest;
-                upRight = Direction.Northeast;
-            }
-            else
-            {
-                upLeft  = Direction.Southeast;
-                upRight = Direction.Southwest;
-            }
-
-            attacks |= Pawns.Shift(upLeft) | Pawns.Shift(upRight);
-
-            return attacks;
-        }
-
-        public Bitboard AttackingBitmask(Bitboard opponentOccupancy)
-        {
-            return BaseAttackingBitmask(Mask | opponentOccupancy) & ~Mask;
-        }
-
-        public Bitboard ProtectedBitmask(Bitboard opponentOccupancy)
-        {
-            return BaseAttackingBitmask(Mask | opponentOccupancy) & Mask & ~King; // cannot protect king
-        }
-    }
-
-    public enum Piece
-    {
-        WhitePawn,
-        BlackPawn,
-        WhiteKnight,
-        BlackKnight,
-        WhiteBishop,
-        BlackBishop,
-        WhiteRook,
-        BlackRook,
-        WhiteQueen,
-        BlackQueen,
-        WhiteKing,
-        BlackKing,
-        Empty
-    }
-
-    public struct BoardInfo
-    {
-        public Bitboard EPsquare;
-        public uint halfMoveClock;
-        public CastlingRights castlingRights;
-        public Piece capturedPiece = Piece.Empty;
-        
-        public Bitboard checkmask;
-        public Bitboard pinD;
-        public Bitboard pinHV;
-
-        public BoardInfo() {}
-    }
-
-    public class Board
+    public class Board960
     {
         public Piece[] BoardArray;
         public PieceSet White;
@@ -132,8 +34,10 @@ namespace Chess
 
         public Bitboard epSquare;
 
-        public Board(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-        {            
+        public int[] rookStarts = [-1, -1, -1, -1];
+
+        public Board960(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w HAha - 0 1")
+        {
             // Create piece sets for each side
             White = new(Colour.White);
             Black = new(Colour.Black);
@@ -238,7 +142,27 @@ namespace Chess
             moveCounter = currentDoubleMoveNumber * 2 + sideToMoveIncrease;
 
             // Set castling rights
-            castlingRights = CastlingRights.FromString(FENcastlingRights);
+            castlingRights = new();
+
+            static int convBool(bool x) => x ? 1 : 0;
+
+            if (FENcastlingRights != "-")
+            {
+                foreach (char right in FENcastlingRights)
+                {
+                    bool isWhite = char.IsUpper(right);
+
+                    int kingPos = isWhite ? White.KingSquare : Black.KingSquare;
+                    int rookPos = isWhite ? right - 'A' : 56 + right - 'a';
+                    
+                    int index = convBool(rookPos < kingPos) | convBool(!isWhite) << 1;
+
+                    // Console.WriteLine($"Index: {index}  |  Rook pos: {rookPos}");
+                    
+                    rookStarts[index] = rookPos;
+                    castlingRights.AddBits(1 << 3 - index);
+                }
+            }
 
             // Set the halftime counter
             if (!uint.TryParse(halftimeCounter, out uint HTC))
@@ -262,16 +186,8 @@ namespace Chess
             UpdatePinsAndCheckers();
         }
 
-
         public Bitboard GetBitboardFromEnum(Piece pieceEnum)
         {
-            Move getLastMovePlayed()
-            {
-                var T = moveHistory.Pop();
-                moveHistory.Push(T);
-                return T;
-            }
-
             return pieceEnum switch
             {
                 Piece.BlackBishop =>  Black.Bishops,
@@ -288,7 +204,11 @@ namespace Chess
                 Piece.WhiteRook   =>  White.Rooks,
                 Piece.WhiteKing   =>  White.King,
 
-                Piece.Empty => throw new Exception($"cannot obtain bitboard for an empty piece on move {getLastMovePlayed()}.\nBoard:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\nPerhaps your start square is wrong?\n"),
+                Piece.Empty => throw new Exception(
+                    $"cannot obtain bitboard for an empty piece on move {moveHistory.Peek()} [Type: {moveHistory.Peek().type}].\n\n" +
+                    $"Board:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\n"
+                    + $"Perhaps your start square is wrong?\n"
+                ),
 
                 _ => throw new Exception($"cannot set bitboard for unaccounted enum \"{pieceEnum}\".") // raised errors if not in place
             };
@@ -351,18 +271,17 @@ namespace Chess
                         
                         case Piece.BlackKing:
                             castlingRights.DisableBoth(Colour.Black);
-                            
                             break;
 
                         case Piece.WhiteRook:
-                            if (move.src == 0) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
-                            if (move.src == 7) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
+                            if (move.src == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting leftside rook position
+                            if (move.src == rookStarts[0]) castlingRights.DisableKingside (Colour.White); // starting rightside rook position
 
                             break;
                         
                         case Piece.BlackRook:
-                            if (move.src == 56) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
-                            if (move.src == 63) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
+                            if (move.src == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting leftside rook position
+                            if (move.src == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting rightside rook position
                             
                             break;
 
@@ -386,14 +305,14 @@ namespace Chess
                         // for whatever side it was taken from
                         if (pieceCaptured == Piece.WhiteRook)
                         {
-                            if (move.dst == 0) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
-                            if (move.dst == 7) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
+                            if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting leftside rook position
+                            if (move.dst == rookStarts[0]) castlingRights.DisableKingside (Colour.White); // starting rightside rook position
                         }
 
                         if (pieceCaptured == Piece.BlackRook)
                         {
-                            if (move.dst == 56) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
-                            if (move.dst == 63) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
+                            if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting leftside rook position
+                            if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting rightside rook position
                         }
 
                         // Update the captured piece's bitboard
@@ -462,49 +381,42 @@ namespace Chess
 
                     break;
                 
-                case MoveType.Castling:
+                case MoveType.Castling960:
                     // Clear en-passant square
                     epSquare = 0;
 
                     // Get the king moving
                     Piece kingToMove = Piece.BlackKing - SideToMove;
                     
-                    // Reset castling rights depending on side
-                    castlingRights.DisableBoth(ColourToMove);
+                    // Reset castling rights depending on the side that just moved
+                    castlingRights.DisableBoth((Colour)(SideToMove ^ 1));
+
+                    // Get where the king will end up
+                    int endKingPosition = move.src < move.dst ? 6 : 2;
+                    if (kingToMove == Piece.BlackKing) endKingPosition += 56;
 
                     // Update bitboard of king
                     bb = GetBitboardFromEnum(kingToMove);
-                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    bb ^= 1UL << move.src | 1UL << endKingPosition;
                     SetBitboardFromEnum(kingToMove, bb);
-
-                    // Get position of rook to castle with on the board
-                    int rookPosition = move.dst switch
-                    {
-                        2 => 0,    // from C1 to A1
-                        6 => 7,    // from G1 to H1
-
-                        58 => 56,  // from C8 to A8
-                        62 => 63,  // from G8 to H8
-                        
-                        _ => throw new Exception($"invalid castling destination square: {move.dst} (Move: {move})")
-                    };
-
-                    // Rook will always end up between the king's start and end square
-                    int endRookPosition = (move.src + move.dst) / 2;
+                    
+                    // Get where the rook will end up
+                    int endRookPosition = move.src < move.dst ? 5 : 3;
+                    if (kingToMove == Piece.BlackKing) endRookPosition += 56;
 
                     // Get rook enum (used for obtaining bitboard)
                     Piece rookEnum = Piece.BlackRook - SideToMove;
                     
                     // Update bitboard of rook
                     Bitboard rookBB = GetBitboardFromEnum(rookEnum);
-                    rookBB ^= 1UL << rookPosition | 1UL << endRookPosition;
+                    rookBB ^= 1UL << move.dst | 1UL << endRookPosition;
                     SetBitboardFromEnum(rookEnum, rookBB);
 
                     // Update array
                     BoardArray[move.src] = Piece.Empty;
-                    BoardArray[rookPosition] = Piece.Empty;
+                    BoardArray[move.dst] = Piece.Empty;
                     
-                    BoardArray[move.dst] = kingToMove;
+                    BoardArray[endKingPosition] = kingToMove;
                     BoardArray[endRookPosition] = rookEnum;
 
                     break;
@@ -544,14 +456,14 @@ namespace Chess
 
                     if (pieceCaptured == Piece.WhiteRook)
                     {
-                        if (move.src == 0) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
-                        if (move.src == 7) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
+                        if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White);
+                        if (move.dst == rookStarts[0]) castlingRights.DisableKingside (Colour.White);
                     }
 
                     if (pieceCaptured == Piece.BlackRook)
                     {
-                        if (move.src == 56) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
-                        if (move.src == 63) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
+                        if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black);
+                        if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black);
                     }
 
                     // Update both sets of bitboards
@@ -672,60 +584,42 @@ namespace Chess
 
                     break;
 
-                case MoveType.Castling:
+                case MoveType.Castling960:
                     Piece kingEnum = Piece.WhiteKing + SideToMove;
+
+                    bool isKingside = previousMove.src < previousMove.dst;
+
+                    // Is kingside? Go to square 6 (G1). If not, go to square 2 (C1)
+                    int endKingPosition = isKingside ? 6 : 2;
+                    if (ColourToMove == Colour.Black) endKingPosition += 56;
 
                     // Update king bitboard
                     bb = GetBitboardFromEnum(kingEnum);
-                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
+                    bb ^= 1UL << endKingPosition | 1UL << previousMove.src;
                     SetBitboardFromEnum(kingEnum, bb);
 
                     // Get rook position
-                    // Rook position is always between the king's source
-                    // and the king's destination square
-                    int rookPosition = (previousMove.src + previousMove.dst) / 2;
+                    int rookPosition = previousMove.src < previousMove.dst ? 5 : 3;
+                    if (kingEnum == Piece.BlackKing) rookPosition += 56;
 
-                    // Get the end rook position:
-                    /*
-                       1 => start pos
-                       2 => end pos
-
-                       2 . . 1 . 1 . 2
-                       . . . . . . . .
-                       . . . . . . . .
-                       . . . . . . . .
-                       . . . . . . . .
-                       . . . . . . . .
-                       . . . . . . . .
-                       2 . . 1 . 1 . 2
-                    */
-                    int endRookPosition = rookPosition switch
-                    {
-                        3 => 0, // from D1 to A1
-                        5 => 7, // from F1 to H1
-
-                        59 => 56, // from D8 to A8
-                        61 => 63, // from F8 to H8
-
-                        _ => throw new Exception("invalid rook position.")
-                    };
-                    
                     Piece rookEnum = Piece.WhiteRook + SideToMove;
 
                     // Update rook bitboard
                     bb = GetBitboardFromEnum(rookEnum);
-                    bb ^= 1UL << rookPosition | 1UL << endRookPosition;
+                    bb ^= 1UL << rookPosition | 1UL << previousMove.dst;
                     SetBitboardFromEnum(rookEnum, bb);
 
                     // Reset castling rights
                     castlingRights = previousBoardInfo.castlingRights;
 
-                    // Update board array
-                    BoardArray[previousMove.dst] = Piece.Empty;
-                    BoardArray[previousMove.src] = kingEnum;
+                    // Console.WriteLine($"[undo move {previousMove}]  src: {previousMove.src}, dst: {previousMove.dst}, rookPos: {rookPosition}, endKingPos: {endKingPosition}");
 
+                    // Update board array
+                    BoardArray[endKingPosition] = Piece.Empty;
                     BoardArray[rookPosition] = Piece.Empty;
-                    BoardArray[endRookPosition] = rookEnum;
+
+                    BoardArray[previousMove.dst] = rookEnum;
+                    BoardArray[previousMove.src] = kingEnum;
 
                     // Reset en-passant square
                     epSquare = previousBoardInfo.EPsquare;
@@ -856,44 +750,14 @@ namespace Chess
 
             if (checkers.BitCount() == 0) // not in check
             {
-                Moves.GenerateCastlingMoves(
-                    sideToMove: ColourToMove,
-                    friendlyPieces: PlayerToMove,
-                    opponentPieces: OpponentToMove,
-                    castlingRights: castlingRights,
-                    moveListToAddTo: moves
+                Moves.GenerateCastling960Moves(
+                    board: this,
+                    moveList: moves
                 );
             }
 
             return moves;
         }
-
-
-        static Bitboard RayBetween(int square1, int square2)
-        {
-            int file1, rank1, file2, rank2;
-
-            file1 = square1 % 8;
-            rank1 = square1 / 8;
-
-            file2 = square2 % 8;
-            rank2 = square2 / 8;
-
-            if (file1 == file2 || rank1 == rank2) // same row or file
-            {
-                return Bitmask.ForRook(1UL << square2, square1)
-                     & Bitmask.ForRook(1UL << square1, square2);
-            }
-
-            if (Math.Abs(file1 - file2) == Math.Abs(rank1 - rank2))
-            {
-                return Bitmask.ForBishop(1UL << square2, square1)
-                     & Bitmask.ForBishop(1UL << square1, square2);
-            }
-
-            throw new Exception($"cannot form ray between squares \"{square1}\" and \"{square2}\" becuase they are not on the same line.");
-        }
-
 
         public void UpdatePinsAndCheckers()
         {
@@ -940,7 +804,7 @@ namespace Chess
             {
                 int sq = bishopAttacks.PopLSB();
 
-                Bitboard checkray = RayBetween(us.KingSquare, sq);
+                Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
                 int numBlockers = blockers.BitCount();
 
@@ -959,7 +823,7 @@ namespace Chess
             {
                 int sq = rookAttacks.PopLSB();
 
-                Bitboard checkray = RayBetween(us.KingSquare, sq);
+                Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
                 int numBlockers = blockers.BitCount();
 

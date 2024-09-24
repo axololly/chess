@@ -1,4 +1,5 @@
 using Types.Bitboards;
+using Chess960;
 
 namespace Chess.Utilities
 {
@@ -113,9 +114,77 @@ namespace Chess.Utilities
             return finalResult + TerminalColours.WHITE;
         }
 
+        public static string StringifyMultipleBitboards960(Bitboard[] bitboards, Board960? optionalBoard = null, List<string>? labels = null, int spacing = 4)
+        {
+            List<string[]> boardsToPrint = [];
+
+            if (optionalBoard != null)
+            {
+                boardsToPrint.Add(optionalBoard.ToString().Split('\n'));
+                
+                if (labels != null)
+                {
+                    labels.Insert(0, "Board");
+                }
+            }
+            
+            string finalResult = "";
+
+            if (labels != null)
+            {
+                foreach (string label in labels)
+                {
+                    string convertedLabel = label;
+
+                    if (label.Length > 16) convertedLabel = label[.. 12] + "...";
+
+                    finalResult += convertedLabel + new string(' ', 16 - convertedLabel.Length) + new string(' ', spacing);
+                }
+
+                finalResult += '\n';
+            }
+
+            foreach (Bitboard bitboard in bitboards)
+            {
+                string[] board = new string[8];
+
+                for (int i = 0; i < 8; i++)
+                {
+                    string line = "";
+
+                    for (int j = 0; j < 8; j++)
+                    {
+                        Bitboard sq = 1UL << i * 8 + j;
+
+                        line += bitboard & sq ? BIT_ON : BIT_OFF;
+                    }
+
+                    board[7 - i] = line;
+                }
+
+                boardsToPrint.Add(board);
+            }
+
+            for (int line = 0; line < 8; line++)
+            {
+                List<string> linesToPrint = boardsToPrint.Select(board => board[line]).ToList();
+                
+                string lineToPrint = string.Join(new string(' ', spacing), linesToPrint);
+
+                finalResult += lineToPrint + (line < 7 ? "\n" : "");
+            }
+
+            return finalResult + TerminalColours.WHITE;
+        }
+
         public static void PrintBitboards(Bitboard[] bitboards, Board? optionalBoard = null, List<string>? labels = null, int spacing = 4)
         {
             Console.WriteLine(StringifyMultipleBitboards(bitboards, optionalBoard, labels, spacing));
+        }
+
+        public static void PrintBitboards960(Bitboard[] bitboards, Board960? optionalBoard = null, List<string>? labels = null, int spacing = 4)
+        {
+            Console.WriteLine(StringifyMultipleBitboards960(bitboards, optionalBoard, labels, spacing));
         }
     }
 

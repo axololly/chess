@@ -78,11 +78,18 @@ namespace Types.Bitboards
             return LSB;
         }
 
-        public int IndexLSB()
+        public int ReadLSB()
         {
             if (bitboard == 0) throw new Exception("cannot read LSB off of an empty bitboard.");
 
             return BitOperations.TrailingZeroCount(bitboard);
+        }
+
+        public int ReadMSB()
+        {
+            if (bitboard == 0) throw new Exception("cannot read MSB off of an empty bitboard.");
+
+            return 63 - BitOperations.LeadingZeroCount(bitboard);
         }
 
         public Bitboard Shift(Direction direction)
