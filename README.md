@@ -124,6 +124,16 @@ Each document is structured like this:
 
 And in total, there are around 6,600 of these that you can use to verify that your engine returns the correct move counts.
 
+If you want to perft test my own project, you can do it with the `Perft` and `Perft960` classes, which have the available features:
+|Type|Method|Explanation|
+|:-|:-|:-|
+|Basic|`.BasePerftTest()`|Returns the number of counted nodes at the end of the function.|
+|Move-by-Move|`.MoveByMovePerftTest()`|Prints the move and number of counted nodes, returning the total at the end.|
+|Global|`.GlobalPerftTest()`|Prints the number of counted nodes until a given depth is reached.|
+|Output|`.OutputPerftTest()`|Redirects the console output into a file for further review.|
+
+All of these work with Chess960 boards - you just need to use `Perft960` instead of `Perft`.
+
 ## Thanks
 
 Honestly, thank you to everyone in the [Stockfish Discord server](https://discord.gg/stockfish), from [Analog Hors](https://github.com/analog-hors) and her [magic bitboards article](https://analog-hors.github.io/site/magic-bitboards/), all the way to Disservin, who I already mentioned above for his code relating to en-passant moves.
