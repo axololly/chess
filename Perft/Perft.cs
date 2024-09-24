@@ -254,13 +254,24 @@ namespace Chess.Perft
             return count;
         }
 
-        public static ulong MoveByMovePerft(Board960 board, int depth, bool bulk = true)
+        public static ulong MoveByMovePerft(
+            Board960 board,
+            int depth,
+            bool bulk = true,
+            bool silence = false,
+            bool includeBoard = false,
+            string stopBefore = ""
+        )
         {
             var nextMoves = board.GenerateLegalMoves();
             ulong total = 0;
 
-            foreach (Move next in nextMoves)
+            for (int i = 0; i < nextMoves.Count; i++)
             {
+                Move next = nextMoves[i];
+
+                if (next.ToString() == stopBefore) return 0;
+
                 // Console.WriteLine($"[ Making move {next} ({next.src} => {next.dst}) ]");
 
                 board.MakeMove(next);
@@ -268,10 +279,8 @@ namespace Chess.Perft
                 ulong nodes = BasePerftTest(board, depth - 1, bulk);
                 total += nodes;
                 
-                Console.WriteLine($"{next} - {nodes}");
-                // Console.WriteLine($"Board after:\n{board}\n");
-                // Display.PrintBitboards([board.White.Rooks, board.White.King], board, ["White Rooks", "White King"]);
-                // Console.WriteLine();
+                if (!silence) Console.WriteLine($"{next} - {nodes}");
+                if (includeBoard) Console.WriteLine($"Board after:\n{board}\n");
 
                 board.UndoMove();
             }

@@ -1,4 +1,4 @@
-using Types.Nibble;
+using Types.CastlingRights;
 using Types.Bitboards;
 
 using Chess.Utilities;
@@ -449,15 +449,15 @@ namespace Chess.MoveGen
             Colour sideToMove,
             PieceSet friendlyPieces,
             PieceSet opponentPieces,
-            Nibble castlingRights,
+            CastlingRights castlingRights,
             List<Move> moveListToAddTo
         )
         {
             int KSC = 0b1000 >> 2 * (int)sideToMove;
             int QSC = 0b0100 >> 2 * (int)sideToMove;
 
-            if (CastlingRights.CanCastleKingside(sideToMove, friendlyPieces, opponentPieces)
-                && (castlingRights & KSC) != 0)
+            if (castlingRights.CanKingside(sideToMove)
+                && CastlingMoves.CanCastleKingside(sideToMove, friendlyPieces, opponentPieces))
             {
                 Move move = new()
                 {
@@ -481,8 +481,8 @@ namespace Chess.MoveGen
                 moveListToAddTo.Add(move);
             }
 
-            if (CastlingRights.CanCastleQueenside(sideToMove, friendlyPieces, opponentPieces)
-                && (castlingRights & QSC) != 0)
+            if (castlingRights.CanQueenside(sideToMove)
+             && CastlingMoves.CanCastleQueenside(sideToMove, friendlyPieces, opponentPieces))
             {
                 Move move = new()
                 {
@@ -507,7 +507,7 @@ namespace Chess.MoveGen
 
         public static void GenerateCastling960Moves(Board960 board, List<Move> moveList)
         {
-            if (Castling960.CanCastleQueenside(board))
+            if (Castling960Moves.CanCastleQueenside(board))
             {
                 int dest = board.rookStarts[2 * (int)board.ColourToMove + 1];
                 
@@ -532,7 +532,7 @@ namespace Chess.MoveGen
                 });
             }
 
-            if (Castling960.CanCastleKingside(board))
+            if (Castling960Moves.CanCastleKingside(board))
             {
                 int dest = board.rookStarts[2 * (int)board.ColourToMove];
                 

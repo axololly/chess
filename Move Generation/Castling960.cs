@@ -14,7 +14,7 @@ namespace Chess960.Castling
         BlackKingside
     }
 
-    public struct Castling960
+    public struct Castling960Moves
     {
         public static bool CanCastleKingside(Board960 board)
         {
@@ -25,7 +25,7 @@ namespace Chess960.Castling
 
             // If the castling right is not present, castling is already
             // off the board   
-            if (!(right & board.castlingRights)) return false;
+            if (!board.castlingRights.CanKingside(side)) return false;
 
             // If the king is in check, castling is already off the board
             if (board.checkers > 0) return false;
@@ -62,11 +62,9 @@ namespace Chess960.Castling
             Colour side = board.ColourToMove;
             bool sideIsWhite = side == Colour.White;
 
-            int right = sideIsWhite ? 0b0100 : 0b0001;
-
             // If the castling right is not present, castling is already
             // off the board   
-            if (!(right & board.castlingRights)) return false;
+            if (!board.castlingRights.CanQueenside(side)) return false;
 
             // If the king is in check, castling is already off the board
             if (board.checkers > 0) return false;

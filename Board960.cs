@@ -2,8 +2,8 @@ using Chess;
 using Chess.Utilities;
 using Chess.MoveGen;
 using Chess.Bitmasks;
-using Types.Nibble;
 using Types.Bitboards;
+using Types.CastlingRights;
 using Chess960.Castling;
 
 namespace Chess960
@@ -15,7 +15,7 @@ namespace Chess960
         public PieceSet Black;
         public int moveCounter;
         public uint halfMoveClock;
-        public Nibble castlingRights; // 0b1111 => KQkq
+        public CastlingRights castlingRights; // 0b1111 => KQkq
         public Stack<Move> moveHistory = new();
         public Stack<BoardInfo> boardHistory = new();
 
@@ -142,7 +142,7 @@ namespace Chess960
             moveCounter = currentDoubleMoveNumber * 2 + sideToMoveIncrease;
 
             // Set castling rights
-            castlingRights = 0;
+            castlingRights = new();
 
             static int convBool(bool x) => x ? 1 : 0;
 
@@ -155,10 +155,12 @@ namespace Chess960
                     int kingPos = isWhite ? White.KingSquare : Black.KingSquare;
                     int rookPos = isWhite ? right - 'A' : 56 + right - 'a';
                     
-                    int index = convBool(rookPos < kingPos) + 2 * convBool(!isWhite);
+                    int index = convBool(rookPos < kingPos) | convBool(!isWhite) << 1;
+
+                    // Console.WriteLine($"Index: {index}  |  Rook pos: {rookPos}");
                     
                     rookStarts[index] = rookPos;
-                    castlingRights |= 1 << 3 - index;
+                    castlingRights.AddBits(1 << 3 - index);
                 }
             }
 
@@ -264,23 +266,22 @@ namespace Chess960
                     switch (pieceToMove)
                     {
                         case Piece.WhiteKing: // Remove white castling rights
-                            castlingRights &= ~0b1100;
+                            castlingRights.DisableBoth(Colour.White);
                             break;
                         
                         case Piece.BlackKing:
-                            castlingRights &= ~0b0011;
-                            
+                            castlingRights.DisableBoth(Colour.Black);
                             break;
 
                         case Piece.WhiteRook:
-                            if (move.src == rookStarts[1]) castlingRights &= ~0b0100; // starting leftside rook position
-                            if (move.src == rookStarts[0]) castlingRights &= ~0b1000; // starting rightside rook position
+                            if (move.src == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting leftside rook position
+                            if (move.src == rookStarts[0]) castlingRights.DisableKingside (Colour.White); // starting rightside rook position
 
                             break;
                         
                         case Piece.BlackRook:
-                            if (move.src == rookStarts[3]) castlingRights &= ~0b0001; // starting leftside rook position
-                            if (move.src == rookStarts[2]) castlingRights &= ~0b0010; // starting rightside rook position
+                            if (move.src == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting leftside rook position
+                            if (move.src == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting rightside rook position
                             
                             break;
 
@@ -304,14 +305,14 @@ namespace Chess960
                         // for whatever side it was taken from
                         if (pieceCaptured == Piece.WhiteRook)
                         {
-                            if (move.dst == 0) castlingRights &= ~0b0100;
-                            if (move.dst == 7) castlingRights &= ~0b1000;
+                            if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting leftside rook position
+                            if (move.dst == rookStarts[0]) castlingRights.DisableKingside (Colour.White); // starting rightside rook position
                         }
 
                         if (pieceCaptured == Piece.BlackRook)
                         {
-                            if (move.dst == 56) castlingRights &= ~0b0001;
-                            if (move.dst == 63) castlingRights &= ~0b0010;
+                            if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting leftside rook position
+                            if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting rightside rook position
                         }
 
                         // Update the captured piece's bitboard
@@ -340,7 +341,7 @@ namespace Chess960
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Get square of pawn to capture
-                    int inFrontOfEPsquare = move.dst - 8 * (move.src > move.dst ? 1 : -1);
+                    int inFrontOfEPsquare = move.dst - 8 * (move.src < move.dst ? 1 : -1);
                     
                     Piece opponentPawnType = BoardArray[inFrontOfEPsquare];
                     
@@ -387,8 +388,8 @@ namespace Chess960
                     // Get the king moving
                     Piece kingToMove = Piece.BlackKing - SideToMove;
                     
-                    // Reset castling rights depending on side
-                    castlingRights &= ~(0b0011 << 2 * SideToMove);
+                    // Reset castling rights depending on the side that just moved
+                    castlingRights.DisableBoth((Colour)(SideToMove ^ 1));
 
                     // Get where the king will end up
                     int endKingPosition = move.src < move.dst ? 6 : 2;
@@ -455,14 +456,14 @@ namespace Chess960
 
                     if (pieceCaptured == Piece.WhiteRook)
                     {
-                        if (move.dst == 0) castlingRights &= ~0b0100;
-                        if (move.dst == 7) castlingRights &= ~0b1000;
+                        if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White);
+                        if (move.dst == rookStarts[0]) castlingRights.DisableKingside (Colour.White);
                     }
 
                     if (pieceCaptured == Piece.BlackRook)
                     {
-                        if (move.dst == 56) castlingRights &= ~0b0001;
-                        if (move.dst == 63) castlingRights &= ~0b0010; // issue somewhere here with castling and shit
+                        if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black);
+                        if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black);
                     }
 
                     // Update both sets of bitboards
@@ -957,30 +958,8 @@ namespace Chess960
             string[] sidesToMove = ["w", "b"];
             FEN += " " + sidesToMove[SideToMove];
 
-            string castlingRightsToAdd;
-
-            // Translate the castling rights from a int to a string
-            if (castlingRights == 0)
-            {
-                castlingRightsToAdd = "-";
-            }
-            else
-            {
-                castlingRightsToAdd = "";
-                string[] castlingRightsValues = ["q", "k", "Q", "K"];
-
-                // Go back to front (start at MSB instead of LSB)
-                for (int x = 3; x > -1; x--)
-                {
-                    if ((castlingRights & (1 << x)) != 0)
-                    {
-                        castlingRightsToAdd += castlingRightsValues[x];
-                    }
-                }
-            }
-
             // Add the castling rights
-            FEN += " " + castlingRightsToAdd;
+            FEN += $" {castlingRights}";
 
             // Add the en-passant square
             if (epSquare == 0)

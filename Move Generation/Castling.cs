@@ -3,7 +3,7 @@ using Chess.Utilities;
 
 namespace Chess.Castling
 {
-    public struct CastlingRights
+    public struct CastlingMoves
     {
         public static Bitboard OccupyingWhiteQSC = 0b00001110UL;
         public static Bitboard MovementWhiteQSC  = 0b00001100UL;
