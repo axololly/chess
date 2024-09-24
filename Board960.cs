@@ -4,7 +4,6 @@ using Chess.MoveGen;
 using Chess.Bitmasks;
 using Types.Bitboards;
 using Types.CastlingRights;
-using Chess960.Castling;
 
 namespace Chess960
 {

@@ -4,6 +4,27 @@ If you can't beat em, join em. And that's what I did when I stayed inside for th
 
 _If I ever hate myself enough to make a Python version, I'll link it here._
 
+## Statistics
+
+Quick section about the statistics of this project:
+
+### Source Code
+
+|File name|Lines|Characters|File size|
+|:-|:-:|:-:|:-:|
+|`Board.cs`|1,121|42,128|42.23 KB|
+|`Board960.cs`|984|38,495|38.55 KB|
+|`Utilities.cs`|232|7,451|7.50 KB|
+|`Bitmasks.cs`|86|2,679|2.70 KB|
+|`Castling.cs`|45|1,742|1.74 KB|
+|`Castling960.cs`|97|3,656|3.66 KB|
+|`Generator.cs`|561|19,372|19.46 KB|
+|`MagicBitboards.cs`|318|17,169|17.08 KB|
+|`Tables.cs`|59|1,851|1.86 KB|
+|`Perft.cs`|373|12,147|12.23 KB|
+|`Bitboard.cs`|119|3,768|3.79 KB|
+|`CastlingRights.cs`|60|2,081|2.09 KB|
+
 ## Using my project
 
 Quick heads up: I used `.NET 8.0` for this.

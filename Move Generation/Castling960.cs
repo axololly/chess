@@ -1,6 +1,4 @@
-using Chess;
 using Chess.Bitmasks;
-using Chess.MoveGen;
 using Chess.Utilities;
 using Types.Bitboards;
 

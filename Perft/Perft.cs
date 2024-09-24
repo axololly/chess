@@ -185,7 +185,7 @@ namespace Chess.Perft
 
                 Stopwatch sw = new();
                 
-                for (int depth = 1; depth < maxDepth + 1; depth++) // search from depth 1 to 4 (efficiency)
+                for (int depth = 1; depth < maxDepth + 1; depth++)
                 {
                     Console.Clear();
                     Console.WriteLine($"Position {i + 1}:\n----------{new string('-', $"{i + 1}".Length)}\nFEN: {entry.FEN}\nBoard:\n{board}\n\n");
@@ -254,14 +254,7 @@ namespace Chess.Perft
             return count;
         }
 
-        public static ulong MoveByMovePerft(
-            Board960 board,
-            int depth,
-            bool bulk = true,
-            bool silence = false,
-            bool includeBoard = false,
-            string stopBefore = ""
-        )
+        public static ulong MoveByMovePerft(Board960 board, int depth, bool bulk = true)
         {
             var nextMoves = board.GenerateLegalMoves();
             ulong total = 0;
@@ -270,17 +263,10 @@ namespace Chess.Perft
             {
                 Move next = nextMoves[i];
 
-                if (next.ToString() == stopBefore) return 0;
-
-                // Console.WriteLine($"[ Making move {next} ({next.src} => {next.dst}) ]");
-
                 board.MakeMove(next);
 
                 ulong nodes = BasePerftTest(board, depth - 1, bulk);
                 total += nodes;
-                
-                if (!silence) Console.WriteLine($"{next} - {nodes}");
-                if (includeBoard) Console.WriteLine($"Board after:\n{board}\n");
 
                 board.UndoMove();
             }
@@ -366,7 +352,6 @@ namespace Chess.Perft
                 sw.Stop();
 
                 Console.WriteLine($"Depth: {depth}  |  Nodes: {count}  |  Time taken: {sw.ElapsedMilliseconds}ms");
-                // Console.WriteLine($"Board after:\n{board}");
             }
         }
     }
