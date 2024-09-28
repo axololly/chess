@@ -1,15 +1,15 @@
 using Chess;
+using Chess.Castling;
 using Chess.Utilities;
 using Chess.MoveGen;
 using Chess.Bitmasks;
 using Types.Bitboards;
-using Types.CastlingRights;
 
 namespace Chess960
 {
     public class Board960
     {
-        public Piece[] BoardArray;
+        public Piece[] Mailbox;
         public PieceSet White;
         public PieceSet Black;
         public int moveCounter;
@@ -56,8 +56,8 @@ namespace Chess960
             boardFEN = string.Join("/", boardFEN.Split('/').Reverse());
             
             // Fill the board with pieces based on the FEN string
-            BoardArray = new Piece[64];
-            Array.Fill(BoardArray, Piece.Empty);
+            Mailbox = new Piece[64];
+            Array.Fill(Mailbox, Piece.Empty);
 
             int cursor = 0;
 
@@ -73,7 +73,7 @@ namespace Chess960
                     // Add N empty spaces to the 
                     for (int i = 0; i < emptySpaces; i++)
                     {
-                        BoardArray[cursor++] = Piece.Empty;
+                        Mailbox[cursor++] = Piece.Empty;
                     }
 
                     // cursor += emptySpaces; // Keep cursor updated
@@ -82,7 +82,7 @@ namespace Chess960
 
                 // Pattern match each character in the FEN string to its
                 // relative Piece enum to be inserted into the board.
-                BoardArray[cursor] = c switch
+                Mailbox[cursor] = c switch
                 {
                     'b' => Piece.BlackBishop,
                     'n' => Piece.BlackKnight,
@@ -259,7 +259,7 @@ namespace Chess960
             switch (move.type)
             {
                 case MoveType.Normal:
-                    Piece pieceToMove = BoardArray[move.src];
+                    Piece pieceToMove = Mailbox[move.src];
                     
                     // Handle disabling castling rights when moving kings or rooks
                     switch (pieceToMove)
@@ -295,10 +295,10 @@ namespace Chess960
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Check if piece was a capture
-                    if (BoardArray[move.dst] != Piece.Empty)
+                    if (Mailbox[move.dst] != Piece.Empty)
                     {
                         // Get the piece that was captured
-                        pieceCaptured = BoardArray[move.dst];
+                        pieceCaptured = Mailbox[move.dst];
 
                         // If the piece captured was a rook, remove castling rights
                         // for whatever side it was taken from
@@ -323,8 +323,8 @@ namespace Chess960
                     }
 
                     // Update board array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = pieceToMove;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = pieceToMove;
 
                     // Clear en-passant square
                     epSquare = 0;
@@ -332,7 +332,7 @@ namespace Chess960
                     break;
 
                 case MoveType.EnPassant:
-                    pieceToMove = BoardArray[move.src];
+                    pieceToMove = Mailbox[move.src];
 
                     // Update bitboard of piece
                     bb = GetBitboardFromEnum(pieceToMove);
@@ -342,7 +342,7 @@ namespace Chess960
                     // Get square of pawn to capture
                     int inFrontOfEPsquare = move.dst - 8 * (move.src < move.dst ? 1 : -1);
                     
-                    Piece opponentPawnType = BoardArray[inFrontOfEPsquare];
+                    Piece opponentPawnType = Mailbox[inFrontOfEPsquare];
                     
                     // Remove pawn from bitboard and update it
                     Bitboard opponentPawnBB = GetBitboardFromEnum(opponentPawnType);
@@ -351,9 +351,9 @@ namespace Chess960
                     SetBitboardFromEnum(opponentPawnType, opponentPawnBB);
 
                     // Remove pawn from board array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = pieceToMove;
-                    BoardArray[inFrontOfEPsquare] = Piece.Empty;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = pieceToMove;
+                    Mailbox[inFrontOfEPsquare] = Piece.Empty;
 
                     // Clear EP square (already been used)
                     epSquare = 0;
@@ -361,7 +361,7 @@ namespace Chess960
                     break;
                 
                 case MoveType.PawnDoublePush:
-                    pieceToMove = BoardArray[move.src];
+                    pieceToMove = Mailbox[move.src];
 
                     // Get the square behind the pawn by getting the
                     // middle square between the start and end of the
@@ -375,8 +375,8 @@ namespace Chess960
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Update board array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = pieceToMove;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = pieceToMove;
 
                     break;
                 
@@ -412,11 +412,11 @@ namespace Chess960
                     SetBitboardFromEnum(rookEnum, rookBB);
 
                     // Update array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = Piece.Empty;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = Piece.Empty;
                     
-                    BoardArray[endKingPosition] = kingToMove;
-                    BoardArray[endRookPosition] = rookEnum;
+                    Mailbox[endKingPosition] = kingToMove;
+                    Mailbox[endRookPosition] = rookEnum;
 
                     break;
                 
@@ -424,10 +424,10 @@ namespace Chess960
                     // Clear EP square
                     epSquare = 0;
 
-                    pieceToMove = BoardArray[move.src];
+                    pieceToMove = Mailbox[move.src];
 
                     // Move piece on array
-                    BoardArray[move.src] = Piece.Empty;
+                    Mailbox[move.src] = Piece.Empty;
                     
                     Piece promotedPiece = move.promoPiece switch
                     {
@@ -438,7 +438,7 @@ namespace Chess960
                         _ => throw new Exception($"promotion piece \"{move.promoPiece}\" unaccounted for.")
                     };
 
-                    Piece pieceLandedOn = BoardArray[move.dst];
+                    Piece pieceLandedOn = Mailbox[move.dst];
 
                     if (pieceLandedOn != Piece.Empty)
                     {
@@ -449,9 +449,9 @@ namespace Chess960
                         SetBitboardFromEnum(pieceLandedOn, bb);
                     }
 
-                    pieceCaptured = BoardArray[move.dst];
+                    pieceCaptured = Mailbox[move.dst];
 
-                    BoardArray[move.dst] = promotedPiece;
+                    Mailbox[move.dst] = promotedPiece;
 
                     if (pieceCaptured == Piece.WhiteRook)
                     {
@@ -511,7 +511,7 @@ namespace Chess960
             
             moveCounter--; // Decrease move counter
 
-            Piece pieceThatMoved = BoardArray[previousMove.dst];
+            Piece pieceThatMoved = Mailbox[previousMove.dst];
 
             // Edit board based on type of previous move
             switch (previousMove.type)
@@ -532,8 +532,8 @@ namespace Chess960
                         SetBitboardFromEnum(previousBoardInfo.capturedPiece, bb);
                     }
 
-                    BoardArray[previousMove.dst] = previousBoardInfo.capturedPiece;
-                    BoardArray[previousMove.src] = pieceThatMoved;
+                    Mailbox[previousMove.dst] = previousBoardInfo.capturedPiece;
+                    Mailbox[previousMove.src] = pieceThatMoved;
 
                     break;
 
@@ -558,9 +558,9 @@ namespace Chess960
                     SetBitboardFromEnum(opponentPawnType, bb);
 
                     // Update board array
-                    BoardArray[previousMove.src] = pawnType;
-                    BoardArray[previousMove.dst] = Piece.Empty;
-                    BoardArray[squarePawnWasTakenFrom] = opponentPawnType;
+                    Mailbox[previousMove.src] = pawnType;
+                    Mailbox[previousMove.dst] = Piece.Empty;
+                    Mailbox[squarePawnWasTakenFrom] = opponentPawnType;
 
                     // En-passant square is previous move destination
                     epSquare = previousBoardInfo.EPsquare;
@@ -568,7 +568,7 @@ namespace Chess960
                     break;
 
                 case MoveType.PawnDoublePush:
-                    pawnType = BoardArray[previousMove.dst];
+                    pawnType = Mailbox[previousMove.dst];
 
                     bb = GetBitboardFromEnum(pawnType);
                     bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
@@ -578,8 +578,8 @@ namespace Chess960
                     epSquare = previousBoardInfo.EPsquare;
 
                     // Update board array
-                    BoardArray[previousMove.src] = pawnType;
-                    BoardArray[previousMove.dst] = Piece.Empty;
+                    Mailbox[previousMove.src] = pawnType;
+                    Mailbox[previousMove.dst] = Piece.Empty;
 
                     break;
 
@@ -614,11 +614,11 @@ namespace Chess960
                     // Console.WriteLine($"[undo move {previousMove}]  src: {previousMove.src}, dst: {previousMove.dst}, rookPos: {rookPosition}, endKingPos: {endKingPosition}");
 
                     // Update board array
-                    BoardArray[endKingPosition] = Piece.Empty;
-                    BoardArray[rookPosition] = Piece.Empty;
+                    Mailbox[endKingPosition] = Piece.Empty;
+                    Mailbox[rookPosition] = Piece.Empty;
 
-                    BoardArray[previousMove.dst] = rookEnum;
-                    BoardArray[previousMove.src] = kingEnum;
+                    Mailbox[previousMove.dst] = rookEnum;
+                    Mailbox[previousMove.src] = kingEnum;
 
                     // Reset en-passant square
                     epSquare = previousBoardInfo.EPsquare;
@@ -648,8 +648,8 @@ namespace Chess960
                     }
 
                     // Update board array
-                    BoardArray[previousMove.src] = pawnType;
-                    BoardArray[previousMove.dst] = previousBoardInfo.capturedPiece;
+                    Mailbox[previousMove.src] = pawnType;
+                    Mailbox[previousMove.dst] = previousBoardInfo.capturedPiece;
 
                     // Update bitboards
                     bb = GetBitboardFromEnum(pawnType);
@@ -853,7 +853,7 @@ namespace Chess960
                 {
                     int index = rank * 8 + file;
 
-                    char stringPiece = BoardArray[index] switch
+                    char stringPiece = Mailbox[index] switch
                     {
                         Piece.WhitePawn => 'P',
                         Piece.WhiteBishop => 'B',
@@ -910,7 +910,7 @@ namespace Chess960
                 {
                     int index = rank * 8 + file;
 
-                    if (BoardArray[index] == Piece.Empty)
+                    if (Mailbox[index] == Piece.Empty)
                     {
                         emptySpaces++;
                     }
@@ -922,7 +922,7 @@ namespace Chess960
                             emptySpaces = 0;
                         }
                         
-                        line += BoardArray[index] switch
+                        line += Mailbox[index] switch
                         {
                             Piece.WhiteBishop => 'B',
                             Piece.BlackBishop => 'b',
@@ -937,7 +937,7 @@ namespace Chess960
                             Piece.WhiteKing   => 'K',
                             Piece.BlackKing   => 'k',
                             
-                            _ => throw new Exception($"piece enum {BoardArray[index]} unaccounted for while constructing FEN string.")
+                            _ => throw new Exception($"piece enum {Mailbox[index]} unaccounted for while constructing FEN string.")
                         };
                     }
                 }
