@@ -111,14 +111,14 @@ namespace Chess
 
     public class Board
     {
-        public Piece[] Mailbox;
-        public PieceSet White;
-        public PieceSet Black;
+        private Piece[] Mailbox;
+        private PieceSet White;
+        private PieceSet Black;
         public int moveCounter;
         public uint halfMoveClock;
         public CastlingRights castlingRights; // 0b1111 => KQkq
         public Stack<Move> moveHistory = new();
-        public Stack<BoardInfo> boardHistory = new();
+        private Stack<BoardInfo> boardHistory = new();
 
         public Bitboard pinHV;
         public Bitboard pinD;
@@ -139,7 +139,7 @@ namespace Chess
         public Stack<ulong> PastZobristHashes { get; set; }
 
         public Board(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-        {            
+        {
             // Create piece sets for each side
             White = new(Colour.White);
             Black = new(Colour.Black);
@@ -335,9 +335,14 @@ namespace Chess
 
             UpdatePinsAndCheckers();
 
-            if (ViolatedRepetitionRule() || Violated50MoveRule())
+            if (ViolatedRepetitionRule())
             {
                 throw new Exception($"cannot construct position: violated repetition rule. Game is already a draw.");
+            }
+
+            if (Violated50MoveRule())
+            {
+                throw new Exception($"cannot construct position: violated 50-move rule. Game is already a draw.");
             }
         }
 
