@@ -57,17 +57,17 @@ Quick section about the statistics of this project:
 
 |File name|Lines|Characters|File size|
 |:-|:-:|:-:|:-:|
-|`Board.cs`|1,219|47,120|47.21 KB|
-|`Board960.cs`|1,100|43,515|43.57 KB|
+|`Board.cs`|1,201|46,385|46.47 KB|       
+|`Board960.cs`|1,082|42,780|42.83 KB|    
 |`Bitmasks.cs`|86|2,679|2.7 KB|
-|`Bitboard.cs`|119|3,820|3.85 KB|
-|`Castling.cs`|210|7,900|7.92 KB|
-|`Generator.cs`|562|19,428|19.52 KB|
+|`Bitboard.cs`|119|3,820|3.85 KB|        
+|`Castling.cs`|210|7,900|7.92 KB|        
+|`Generator.cs`|562|19,428|19.52 KB|     
 |`MagicBitboards.cs`|318|17,169|17.08 KB|
 |`Perft.cs`|358|11,564|11.64 KB|
 |`Square.cs`|132|5,244|5.25 KB|
 |`Tables.cs`|59|1,851|1.86 KB|
-|`Utilities.cs`|232|7,451|7.5 KB|
+|`Utilities.cs`|232|7,451|7.5 KB|        
 |`Zobrist.cs`|83|2,153|2.18 KB|
 
 ## Using my project

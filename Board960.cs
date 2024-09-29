@@ -871,24 +871,6 @@ namespace Chess960
         }
 
 
-        static Bitboard RayBetween(Square square1, Square square2)
-        {
-            if (square1.File == square2.File || square1.Rank == square2.Rank) // same row or file
-            {
-                return Bitmask.ForRook(square2.Bitboard, square1)
-                     & Bitmask.ForRook(square1.Bitboard, square2);
-            }
-
-            if (Math.Abs(square1.File - square2.File) == Math.Abs(square1.Rank - square2.Rank))
-            {
-                return Bitmask.ForBishop(square2.Bitboard, square1)
-                     & Bitmask.ForBishop(square1.Bitboard, square2);
-            }
-
-            throw new Exception($"cannot form ray between squares \"{square1}\" and \"{square2}\" becuase they are not on the same line.");
-        }
-
-
         public void UpdatePinsAndCheckers()
         {
             PieceSet us = PlayerToMove;
@@ -934,7 +916,7 @@ namespace Chess960
             {
                 Square sq = bishopAttacks.PopLSB();
 
-                Bitboard checkray = RayBetween(us.KingSquare, sq);
+                Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
                 int numBlockers = blockers.BitCount;
 
@@ -953,7 +935,7 @@ namespace Chess960
             {
                 Square sq = rookAttacks.PopLSB();
 
-                Bitboard checkray = RayBetween(us.KingSquare, sq);
+                Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
                 int numBlockers = blockers.BitCount;
 
