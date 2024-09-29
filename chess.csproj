@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -8,7 +7,7 @@
 
   <PropertyGroup>
     <PackageID>Axololly.Chess.MoveGenerator</PackageID>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Authors>Axololly</Authors>
     <PackageTags>Chess;Move Generation;Bitboards</PackageTags>
     <Description>
