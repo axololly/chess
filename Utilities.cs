@@ -215,13 +215,6 @@ namespace Chess.Utilities
         public static readonly Bitboard Sixth = 0xFF0000000000;
         public static readonly Bitboard Seventh = 0xFF000000000000;
         public static readonly Bitboard Eighth = 0xFF00000000000000;
-
-        private static readonly Bitboard[] All = [
-            First, Second, Third, Fourth,
-            Fifth, Sixth, Seventh, Eighth
-        ];
-
-        public static Bitboard ContainsPosition(int position) => All[position / 8];
     }
 
     public enum Colour

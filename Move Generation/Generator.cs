@@ -397,16 +397,16 @@ namespace Chess.MoveGen
             // If there's no en-passant square, return here
             if (!epSquare) return;
 
-            int epPawn   = epSquare - pawnShifts[1];
+            Square epPawn   = epSquare - pawnShifts[1];
             
-            Bitboard epMask = epSquare.Bitboard | 1UL << epPawn;
+            Bitboard epMask = epSquare.Bitboard | epPawn.Bitboard;
 
             // If the en-passant square and the enemy pawn are not on
             // the checkmask, then en-passant is not available.
             if (!(checkmask & epMask)) return;
 
             int kingSquare = us.KingSquare;
-            Bitboard kingMask = us.King & Ranks.ContainsPosition(epPawn);
+            Bitboard kingMask = us.King & 0xFFUL << epPawn.Rank;
             
             Bitboard enemyQueenRook = them.Queens | them.Rooks;
 
