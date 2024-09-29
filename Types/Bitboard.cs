@@ -1,5 +1,6 @@
 using System.Numerics;
 using Chess.Utilities;
+using Types.Squares;
 
 namespace Types.Bitboards
 {
@@ -20,6 +21,7 @@ namespace Types.Bitboards
         private ulong bitboard;
 
         public readonly bool IsEmpty { get { return bitboard == 0; } }
+        public readonly int BitCount { get { return BitOperations.PopCount(bitboard); } }
 
         public static Bitboard Filled { get { return ulong.MaxValue; } }
 
@@ -67,7 +69,7 @@ namespace Types.Bitboards
 
 
         // Bit tricks
-        public int PopLSB()
+        public Square PopLSB()
         {
             if (bitboard == 0) throw new Exception("cannot pop LSB off of an empty bitboard.");
 
@@ -78,14 +80,14 @@ namespace Types.Bitboards
             return LSB;
         }
 
-        public int ReadLSB()
+        public Square ReadLSB()
         {
             if (bitboard == 0) throw new Exception("cannot read LSB off of an empty bitboard.");
 
             return BitOperations.TrailingZeroCount(bitboard);
         }
 
-        public int ReadMSB()
+        public Square ReadMSB()
         {
             if (bitboard == 0) throw new Exception("cannot read MSB off of an empty bitboard.");
 
@@ -110,8 +112,6 @@ namespace Types.Bitboards
                 _ => throw new Exception($"invalid Direction enum \"{direction}\"")
             };
         }
-
-        public int BitCount() => BitOperations.PopCount(bitboard);
 
         // For displaying a bitboard
         public override string ToString() => Display.StringifyBitboard(bitboard);

@@ -1,22 +1,24 @@
-using Chess;
 using Chess.Utilities;
 using Chess.MoveGen;
 using Chess.Bitmasks;
+using Chess.Castling;
 using Types.Bitboards;
-using Types.CastlingRights;
+using Types.Squares;
+using Types.Zobrist;
+using Chess;
 
 namespace Chess960
 {
     public class Board960
     {
-        public Piece[] BoardArray;
-        public PieceSet White;
-        public PieceSet Black;
+        private Piece[] Mailbox;
+        private PieceSet White;
+        private PieceSet Black;
         public int moveCounter;
         public uint halfMoveClock;
         public CastlingRights castlingRights; // 0b1111 => KQkq
         public Stack<Move> moveHistory = new();
-        public Stack<BoardInfo> boardHistory = new();
+        private Stack<BoardInfo> boardHistory = new();
 
         public Bitboard pinHV;
         public Bitboard pinD;
@@ -31,11 +33,14 @@ namespace Chess960
         public PieceSet PlayerToMove { get { return SideToMove == 0 ? White : Black; } }
         public PieceSet OpponentToMove { get { return SideToMove == 0 ? Black : White; }}
 
-        public Bitboard epSquare;
+        public Square epSquare;
 
         public int[] rookStarts = [-1, -1, -1, -1];
 
-        public Board960(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w HAha - 0 1")
+        public ulong ZobristKey { get; set; }
+        public Stack<ulong> PastZobristHashes { get; set; }
+
+        public Board960(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
         {
             // Create piece sets for each side
             White = new(Colour.White);
@@ -56,8 +61,13 @@ namespace Chess960
             boardFEN = string.Join("/", boardFEN.Split('/').Reverse());
             
             // Fill the board with pieces based on the FEN string
-            BoardArray = new Piece[64];
-            Array.Fill(BoardArray, Piece.Empty);
+            Mailbox = new Piece[64];
+            Array.Fill(Mailbox, Piece.Empty);
+
+            Zobrist.Init();
+
+            ZobristKey = 0;
+            PastZobristHashes = [];
 
             int cursor = 0;
 
@@ -73,7 +83,7 @@ namespace Chess960
                     // Add N empty spaces to the 
                     for (int i = 0; i < emptySpaces; i++)
                     {
-                        BoardArray[cursor++] = Piece.Empty;
+                        Mailbox[cursor++] = Piece.Empty;
                     }
 
                     // cursor += emptySpaces; // Keep cursor updated
@@ -81,46 +91,109 @@ namespace Chess960
                 }
 
                 // Pattern match each character in the FEN string to its
-                // relative Piece enum to be inserted into the board.
-                BoardArray[cursor] = c switch
+                // relative Piece enum to be inserted into the board and
+                // add a bit to the corresponding part of each bitboard.
+                switch (c)
                 {
-                    'b' => Piece.BlackBishop,
-                    'n' => Piece.BlackKnight,
-                    'r' => Piece.BlackRook,
-                    'q' => Piece.BlackQueen,
-                    'p' => Piece.BlackPawn,
-                    'k' => Piece.BlackKing,
+                    case 'b':
+                        Mailbox[cursor] = Piece.BlackBishop;
+                        Black.Bishops |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackBishop, cursor);
+                        
+                        break;
 
-                    'B' => Piece.WhiteBishop,
-                    'N' => Piece.WhiteKnight,
-                    'R' => Piece.WhiteRook,
-                    'Q' => Piece.WhiteQueen,
-                    'K' => Piece.WhiteKing,
-                    'P' => Piece.WhitePawn,
+                    case 'n':
+                        Mailbox[cursor] = Piece.BlackKnight;
+                        Black.Knights |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackKnight, cursor);
+                        
+                        break;
 
-                    _ => throw new Exception($"invalid character '{c}' found in FEN string.")
-                };
+                    case 'r':
+                        Mailbox[cursor] = Piece.BlackRook;
+                        Black.Knights |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackRook, cursor);
+                        
+                        break;
+                    
+                    case 'q':
+                        Mailbox[cursor] = Piece.BlackQueen;
+                        Black.Queens |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackQueen, cursor);
+                        
+                        break;
+                    
+                    case 'k':
+                        Mailbox[cursor] = Piece.BlackKing;
+                        Black.King |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackKing, cursor);
+                        
+                        break;
+                    
+                    case 'p':
+                        Mailbox[cursor] = Piece.BlackPawn;
+                        Black.Pawns |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackPawn, cursor);
+                        
+                        break;
+                    
+                    case 'B':
+                        Mailbox[cursor] = Piece.WhiteBishop;
+                        White.Bishops |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhiteBishop, cursor);
+                        
+                        break;
 
-                // Pattern match each character in the FEN string to the bitboard
-                // to insert a bit into, using the cursor argument.
-                var _ = c switch
-                {
-                    'b' => Black.Bishops |= 1UL << cursor,
-                    'n' => Black.Knights |= 1UL << cursor,
-                    'r' => Black.Rooks   |= 1UL << cursor,
-                    'q' => Black.Queens  |= 1UL << cursor,
-                    'k' => Black.King    |= 1UL << cursor,
-                    'p' => Black.Pawns   |= 1UL << cursor,
+                    case 'N':
+                        Mailbox[cursor] = Piece.WhiteKnight;
+                        White.Knights |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhiteKnight, cursor);
+                        
+                        break;
 
-                    'B' => White.Bishops |= 1UL << cursor,
-                    'N' => White.Knights |= 1UL << cursor,
-                    'R' => White.Rooks   |= 1UL << cursor,
-                    'Q' => White.Queens  |= 1UL << cursor,
-                    'K' => White.King    |= 1UL << cursor,
-                    'P' => White.Pawns   |= 1UL << cursor,
+                    case 'R':
+                        Mailbox[cursor] = Piece.WhiteRook;
+                        White.Knights |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhiteRook, cursor);
+                        
+                        break;
+                    
+                    case 'Q':
+                        Mailbox[cursor] = Piece.WhiteQueen;
+                        White.Queens |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhiteQueen, cursor);
+                        
+                        break;
+                    
+                    case 'K':
+                        Mailbox[cursor] = Piece.WhiteKing;
+                        White.King |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhiteKing, cursor);
+                        
+                        break;
+                    
+                    case 'P':
+                        Mailbox[cursor] = Piece.WhitePawn;
+                        White.Pawns |= 1UL << cursor;
+                        
+                        ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhitePawn, cursor);
+                        
+                        break;
 
-                    _ => throw new Exception($"invalid character '{c}' found in FEN string.")
-                };
+                    default:
+                        throw new Exception($"invalid character '{c}' was found in the FEN string.");
+                }
 
                 // Increase the cursor to the new position
                 cursor++;
@@ -140,6 +213,8 @@ namespace Chess960
 
             moveCounter = currentDoubleMoveNumber * 2 + sideToMoveIncrease;
 
+            ZobristKey ^= Zobrist.HashColor((Colour)(sideToMoveIncrease ^ 1));
+
             // Set castling rights
             castlingRights = new();
 
@@ -155,13 +230,13 @@ namespace Chess960
                     int rookPos = isWhite ? right - 'A' : 56 + right - 'a';
                     
                     int index = convBool(rookPos < kingPos) | convBool(!isWhite) << 1;
-
-                    // Console.WriteLine($"Index: {index}  |  Rook pos: {rookPos}");
                     
                     rookStarts[index] = rookPos;
                     castlingRights.AddBits(1 << 3 - index);
                 }
             }
+
+            ZobristKey ^= Zobrist.HashCastlingRights(castlingRights);
 
             // Set the halftime counter
             if (!uint.TryParse(halftimeCounter, out uint HTC))
@@ -169,24 +244,38 @@ namespace Chess960
                 throw new Exception("half time counter was not a positive integer.");
             }
 
-            halfMoveClock = HTC;
+            halfMoveClock = HTC * 2;
 
             // Set an en-passant square
-            if (epSquareString != "-")
-            {
-                int rank = "12345678".IndexOf(epSquareString[1]);
-                int file = "abcdefgh".IndexOf(epSquareString[0]);
+            epSquare = new(epSquareString);
 
-                int epSquareIndex = rank * 8 + file;
+            ZobristKey ^= Zobrist.HashEnPassant(epSquare);
 
-                epSquare = 1UL << epSquareIndex;
-            }
+            PastZobristHashes.Push(ZobristKey);
 
             UpdatePinsAndCheckers();
+
+            if (ViolatedRepetitionRule())
+            {
+                throw new Exception($"cannot construct position: violated repetition rule. Game is already a draw.");
+            }
+
+            if (Violated50MoveRule())
+            {
+                throw new Exception($"cannot construct position: violated 50-move rule. Game is already a draw.");
+            }
         }
+
 
         public Bitboard GetBitboardFromEnum(Piece pieceEnum)
         {
+            Move getLastMovePlayed()
+            {
+                var T = moveHistory.Pop();
+                moveHistory.Push(T);
+                return T;
+            }
+
             return pieceEnum switch
             {
                 Piece.BlackBishop =>  Black.Bishops,
@@ -203,11 +292,7 @@ namespace Chess960
                 Piece.WhiteRook   =>  White.Rooks,
                 Piece.WhiteKing   =>  White.King,
 
-                Piece.Empty => throw new Exception(
-                    $"cannot obtain bitboard for an empty piece on move {moveHistory.Peek()} [Type: {moveHistory.Peek().type}].\n\n" +
-                    $"Board:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\n"
-                    + $"Perhaps your start square is wrong?\n"
-                ),
+                Piece.Empty => throw new Exception($"cannot obtain bitboard for an empty piece on move {getLastMovePlayed()}.\nBoard:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\nPerhaps your start square is wrong?\n"),
 
                 _ => throw new Exception($"cannot set bitboard for unaccounted enum \"{pieceEnum}\".") // raised errors if not in place
             };
@@ -239,11 +324,17 @@ namespace Chess960
 
         public void MakeMove(Move move)
         {
+            if (ViolatedRepetitionRule() || Violated50MoveRule())
+            {
+                throw new Exception($"cannot play move {move}: violated repetition rule. Game is already a draw.");
+            }
+
             // Archive move
             moveHistory.Push(move);
             moveCounter++;
 
-            Piece pieceCaptured;
+            Piece pieceToMove = Mailbox[move.src];
+            Piece pieceCaptured = Mailbox[move.dst];
 
             // Board info for archiving
             BoardInfo boardInfo = new()
@@ -258,9 +349,7 @@ namespace Chess960
             // Modify the board based on the type of move played
             switch (move.type)
             {
-                case MoveType.Normal:
-                    Piece pieceToMove = BoardArray[move.src];
-                    
+                case MoveType.Normal:                    
                     // Handle disabling castling rights when moving kings or rooks
                     switch (pieceToMove)
                     {
@@ -270,17 +359,18 @@ namespace Chess960
                         
                         case Piece.BlackKing:
                             castlingRights.DisableBoth(Colour.Black);
+                            
                             break;
 
                         case Piece.WhiteRook:
-                            if (move.src == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting leftside rook position
-                            if (move.src == rookStarts[0]) castlingRights.DisableKingside (Colour.White); // starting rightside rook position
+                            if (move.src == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
+                            if (move.src == rookStarts[0]) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
 
                             break;
                         
                         case Piece.BlackRook:
-                            if (move.src == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting leftside rook position
-                            if (move.src == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting rightside rook position
+                            if (move.src == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
+                            if (move.src == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
                             
                             break;
 
@@ -291,40 +381,37 @@ namespace Chess960
                     // Update piece bitboard
                     Bitboard bb = GetBitboardFromEnum(pieceToMove);
 
-                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    bb ^= move.src.Bitboard | move.dst.Bitboard;
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Check if piece was a capture
-                    if (BoardArray[move.dst] != Piece.Empty)
+                    if (pieceCaptured != Piece.Empty)
                     {
-                        // Get the piece that was captured
-                        pieceCaptured = BoardArray[move.dst];
-
                         // If the piece captured was a rook, remove castling rights
                         // for whatever side it was taken from
                         if (pieceCaptured == Piece.WhiteRook)
                         {
-                            if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting leftside rook position
-                            if (move.dst == rookStarts[0]) castlingRights.DisableKingside (Colour.White); // starting rightside rook position
+                            if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
+                            if (move.dst == rookStarts[0]) castlingRights.DisableKingside (Colour.White); // starting kingside rook position
                         }
 
                         if (pieceCaptured == Piece.BlackRook)
                         {
-                            if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting leftside rook position
-                            if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting rightside rook position
+                            if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
+                            if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
                         }
 
                         // Update the captured piece's bitboard
                         bb = GetBitboardFromEnum(pieceCaptured);
-                        bb ^= 1UL << move.dst;
+                        bb ^= move.dst.Bitboard;
                         SetBitboardFromEnum(pieceCaptured, bb);
 
                         boardInfo.capturedPiece = pieceCaptured;
                     }
 
                     // Update board array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = pieceToMove;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = pieceToMove;
 
                     // Clear en-passant square
                     epSquare = 0;
@@ -332,28 +419,33 @@ namespace Chess960
                     break;
 
                 case MoveType.EnPassant:
-                    pieceToMove = BoardArray[move.src];
+                    // Update zobrist hash
+                    // After playing EP, there won't be another EP square,
+                    // so we don't need to re-XOR to the hash.
+                    if (boardHistory.TryPeek(out BoardInfo previousBoardInfo))
+                    {
+                        ZobristKey ^= Zobrist.HashEnPassant(previousBoardInfo.EPsquare);
+                    }
 
                     // Update bitboard of piece
                     bb = GetBitboardFromEnum(pieceToMove);
-                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    bb ^= move.src.Bitboard | move.dst.Bitboard;
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Get square of pawn to capture
-                    int inFrontOfEPsquare = move.dst - 8 * (move.src < move.dst ? 1 : -1);
+                    Square inFrontOfEPsquare = move.dst - 8 * (move.src < move.dst ? 1 : -1);
                     
-                    Piece opponentPawnType = BoardArray[inFrontOfEPsquare];
+                    Piece opponentPawnType = Mailbox[inFrontOfEPsquare];
                     
                     // Remove pawn from bitboard and update it
                     Bitboard opponentPawnBB = GetBitboardFromEnum(opponentPawnType);
-
-                    opponentPawnBB ^= 1UL << inFrontOfEPsquare;
+                    opponentPawnBB ^= inFrontOfEPsquare.Bitboard;
                     SetBitboardFromEnum(opponentPawnType, opponentPawnBB);
 
                     // Remove pawn from board array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = pieceToMove;
-                    BoardArray[inFrontOfEPsquare] = Piece.Empty;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = pieceToMove;
+                    Mailbox[inFrontOfEPsquare] = Piece.Empty;
 
                     // Clear EP square (already been used)
                     epSquare = 0;
@@ -361,62 +453,66 @@ namespace Chess960
                     break;
                 
                 case MoveType.PawnDoublePush:
-                    pieceToMove = BoardArray[move.src];
-
                     // Get the square behind the pawn by getting the
                     // middle square between the start and end of the
                     // double pawn push.
                     int newEPsquare = (move.src + move.dst) / 2;
-                    epSquare = 1UL << newEPsquare;
+                    epSquare = new(newEPsquare);
+
+                    // Update the zobrist hash with the new EP square
+                    ZobristKey ^= Zobrist.HashEnPassant(epSquare);
                     
                     // Update piece bitboard
                     bb = GetBitboardFromEnum(pieceToMove);
-                    bb ^= 1UL << move.src | 1UL << move.dst;
+                    bb ^= move.src.Bitboard | move.dst.Bitboard;
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Update board array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = pieceToMove;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = pieceToMove;
 
                     break;
                 
                 case MoveType.Castling960:
+                    // Update zobrist hash with new castling rights
+                    ZobristKey ^= Zobrist.HashCastlingRights(castlingRights);
+
                     // Clear en-passant square
                     epSquare = 0;
 
                     // Get the king moving
-                    Piece kingToMove = Piece.BlackKing - SideToMove;
+                    pieceToMove = Piece.BlackKing - SideToMove;
                     
                     // Reset castling rights depending on the side that just moved
                     castlingRights.DisableBoth((Colour)(SideToMove ^ 1));
 
                     // Get where the king will end up
-                    int endKingPosition = move.src < move.dst ? 6 : 2;
-                    if (kingToMove == Piece.BlackKing) endKingPosition += 56;
+                    Square endKingSquare = move.src < move.dst ? 6 : 2;
+                    if (pieceToMove == Piece.BlackKing) endKingSquare += 56;
 
                     // Update bitboard of king
-                    bb = GetBitboardFromEnum(kingToMove);
-                    bb ^= 1UL << move.src | 1UL << endKingPosition;
-                    SetBitboardFromEnum(kingToMove, bb);
+                    bb = GetBitboardFromEnum(pieceToMove);
+                    bb ^= move.src.Bitboard | endKingSquare.Bitboard;
+                    SetBitboardFromEnum(pieceToMove, bb);
                     
                     // Get where the rook will end up
-                    int endRookPosition = move.src < move.dst ? 5 : 3;
-                    if (kingToMove == Piece.BlackKing) endRookPosition += 56;
+                    Square endRookSquare = move.src < move.dst ? 5 : 3;
+                    if (pieceToMove == Piece.BlackKing) endRookSquare += 56;
 
                     // Get rook enum (used for obtaining bitboard)
                     Piece rookEnum = Piece.BlackRook - SideToMove;
                     
                     // Update bitboard of rook
                     Bitboard rookBB = GetBitboardFromEnum(rookEnum);
-                    rookBB ^= 1UL << move.dst | 1UL << endRookPosition;
+                    rookBB ^= move.dst.Bitboard | endRookSquare.Bitboard;
                     SetBitboardFromEnum(rookEnum, rookBB);
 
                     // Update array
-                    BoardArray[move.src] = Piece.Empty;
-                    BoardArray[move.dst] = Piece.Empty;
+                    Mailbox[move.src] = Piece.Empty;
+                    Mailbox[move.dst] = Piece.Empty;
                     
-                    BoardArray[endKingPosition] = kingToMove;
-                    BoardArray[endRookPosition] = rookEnum;
+                    Mailbox[endKingSquare] = pieceToMove;
+                    Mailbox[endRookSquare] = rookEnum;
 
                     break;
                 
@@ -424,10 +520,8 @@ namespace Chess960
                     // Clear EP square
                     epSquare = 0;
 
-                    pieceToMove = BoardArray[move.src];
-
                     // Move piece on array
-                    BoardArray[move.src] = Piece.Empty;
+                    Mailbox[move.src] = Piece.Empty;
                     
                     Piece promotedPiece = move.promoPiece switch
                     {
@@ -438,40 +532,36 @@ namespace Chess960
                         _ => throw new Exception($"promotion piece \"{move.promoPiece}\" unaccounted for.")
                     };
 
-                    Piece pieceLandedOn = BoardArray[move.dst];
-
-                    if (pieceLandedOn != Piece.Empty)
+                    if (pieceCaptured != Piece.Empty)
                     {
-                        boardInfo.capturedPiece = pieceLandedOn;
+                        if (pieceCaptured == Piece.WhiteRook)
+                        {
+                            if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
+                            if (move.dst == rookStarts[0]) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
+                        }
 
-                        bb = GetBitboardFromEnum(pieceLandedOn);
-                        bb ^= 1UL << move.dst;
-                        SetBitboardFromEnum(pieceLandedOn, bb);
+                        if (pieceCaptured == Piece.BlackRook)
+                        {
+                            if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
+                            if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
+                        }
+
+                        boardInfo.capturedPiece = pieceCaptured;
+
+                        bb = GetBitboardFromEnum(pieceCaptured);
+                        bb ^= move.dst.Bitboard;
+                        SetBitboardFromEnum(pieceCaptured, bb);
                     }
 
-                    pieceCaptured = BoardArray[move.dst];
-
-                    BoardArray[move.dst] = promotedPiece;
-
-                    if (pieceCaptured == Piece.WhiteRook)
-                    {
-                        if (move.dst == rookStarts[1]) castlingRights.DisableQueenside(Colour.White);
-                        if (move.dst == rookStarts[0]) castlingRights.DisableKingside (Colour.White);
-                    }
-
-                    if (pieceCaptured == Piece.BlackRook)
-                    {
-                        if (move.dst == rookStarts[3]) castlingRights.DisableQueenside(Colour.Black);
-                        if (move.dst == rookStarts[2]) castlingRights.DisableKingside (Colour.Black);
-                    }
+                    Mailbox[move.dst] = promotedPiece;
 
                     // Update both sets of bitboards
                     bb = GetBitboardFromEnum(pieceToMove);
-                    bb ^= 1UL << move.src;
+                    bb ^= move.src.Bitboard;
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     bb = GetBitboardFromEnum(promotedPiece);
-                    bb ^= 1UL << move.dst;
+                    bb ^= move.dst.Bitboard;
                     SetBitboardFromEnum(promotedPiece, bb);
 
                     break;
@@ -480,22 +570,43 @@ namespace Chess960
                     throw new Exception($"move flag \"{move.type}\" on move {move} unaccounted for.");
             }
 
-            // If the move played was a promotion move (pawn was promoted) or a piece
-            // on the board was captured, reset the halfmove clock
-            if (move.type == MoveType.Promotion || boardInfo.capturedPiece != Piece.Empty) halfMoveClock = 0;
+            // If the move played was a pawn move or a piece on
+            // the board was captured, reset the halfmove clock.
+            if (pieceToMove == Piece.WhitePawn
+             || pieceToMove == Piece.BlackPawn
+             || boardInfo.capturedPiece != Piece.Empty) halfMoveClock = 0;
 
             // Otherwise, increase the halfmove clock
             else halfMoveClock++;
+
+            // Add the newly moved piece to the zobrist hash
+            ZobristKey ^= Zobrist.HashPieceAndSquare(pieceToMove, move.src);
+            ZobristKey ^= Zobrist.HashPieceAndSquare(pieceToMove, move.dst);
+
+            // Add the piece if captured - defaults to 0 internally if no piece
+            // was captured this move.
+            ZobristKey ^= Zobrist.HashPieceAndSquare(pieceCaptured, move.dst);
+
+            // Remove the hash for the previous player
+            // ZobristKey ^= Zobrist.HashColor((Colour)(SideToMove ^ 1));
+
+            // Add the hash for the current player
+            ZobristKey ^= Zobrist.HashColor(ColourToMove);
+
+            // Add the hash to the list of past hashes
+            PastZobristHashes.Push(ZobristKey);
             
             boardHistory.Push(boardInfo);
             
             UpdatePinsAndCheckers();
-
-            CheckForRepetitions();
         }
 
         public void UndoMove()
         {
+            PastZobristHashes.Pop();
+
+            ZobristKey = PastZobristHashes.Peek();
+
             if (moveHistory.Count == 0) throw new Exception("cannot undo when no moves on the board have been played.");
 
             // Get last move and last board info
@@ -511,7 +622,7 @@ namespace Chess960
             
             moveCounter--; // Decrease move counter
 
-            Piece pieceThatMoved = BoardArray[previousMove.dst];
+            Piece pieceThatMoved = Mailbox[previousMove.dst];
 
             // Edit board based on type of previous move
             switch (previousMove.type)
@@ -520,7 +631,7 @@ namespace Chess960
                     // Update bitboard of piece
                     Bitboard bb = GetBitboardFromEnum(pieceThatMoved);
 
-                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
+                    bb ^= previousMove.dst.Bitboard | previousMove.src.Bitboard;
                     SetBitboardFromEnum(pieceThatMoved, bb);
 
                     // Check if a piece was captured
@@ -528,12 +639,12 @@ namespace Chess960
                     if (previousBoardInfo.capturedPiece != Piece.Empty)
                     {
                         bb = GetBitboardFromEnum(previousBoardInfo.capturedPiece);
-                        bb ^= 1UL << previousMove.dst;
+                        bb ^= 1UL << previousMove.dst.Bitboard;
                         SetBitboardFromEnum(previousBoardInfo.capturedPiece, bb);
                     }
 
-                    BoardArray[previousMove.dst] = previousBoardInfo.capturedPiece;
-                    BoardArray[previousMove.src] = pieceThatMoved;
+                    Mailbox[previousMove.dst] = previousBoardInfo.capturedPiece;
+                    Mailbox[previousMove.src] = pieceThatMoved;
 
                     break;
 
@@ -543,24 +654,24 @@ namespace Chess960
                     
                     // Update bitboard of that piece
                     bb = GetBitboardFromEnum(pawnType);
-                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
+                    bb ^= 1UL << previousMove.dst.Bitboard | 1UL << previousMove.src.Bitboard;
                     SetBitboardFromEnum(pawnType, bb);
 
                     Piece opponentPawnType = Piece.BlackPawn - SideToMove;
 
                     // Get the square in front of the EP square (relative to the side moving)
-                    int squarePawnWasTakenFrom = previousMove.dst + (SideToMove == 0 ? -8 : 8);
+                    Square squarePawnWasTakenFrom = previousMove.dst + (SideToMove == 0 ? -8 : 8);
 
                     // Update bitboard of opponent pawn type
                     // (replace the pawn that was captured)
                     bb = GetBitboardFromEnum(opponentPawnType);
-                    bb ^= 1UL << squarePawnWasTakenFrom;
+                    bb ^= squarePawnWasTakenFrom.Bitboard;
                     SetBitboardFromEnum(opponentPawnType, bb);
 
                     // Update board array
-                    BoardArray[previousMove.src] = pawnType;
-                    BoardArray[previousMove.dst] = Piece.Empty;
-                    BoardArray[squarePawnWasTakenFrom] = opponentPawnType;
+                    Mailbox[previousMove.src] = pawnType;
+                    Mailbox[previousMove.dst] = Piece.Empty;
+                    Mailbox[squarePawnWasTakenFrom] = opponentPawnType;
 
                     // En-passant square is previous move destination
                     epSquare = previousBoardInfo.EPsquare;
@@ -568,18 +679,18 @@ namespace Chess960
                     break;
 
                 case MoveType.PawnDoublePush:
-                    pawnType = BoardArray[previousMove.dst];
+                    pawnType = Mailbox[previousMove.dst];
 
                     bb = GetBitboardFromEnum(pawnType);
-                    bb ^= 1UL << previousMove.dst | 1UL << previousMove.src;
+                    bb ^= previousMove.dst.Bitboard | previousMove.src.Bitboard;
                     SetBitboardFromEnum(pawnType, bb);
 
                     // Reset en-passant square
                     epSquare = previousBoardInfo.EPsquare;
 
                     // Update board array
-                    BoardArray[previousMove.src] = pawnType;
-                    BoardArray[previousMove.dst] = Piece.Empty;
+                    Mailbox[previousMove.src] = pawnType;
+                    Mailbox[previousMove.dst] = Piece.Empty;
 
                     break;
 
@@ -589,36 +700,34 @@ namespace Chess960
                     bool isKingside = previousMove.src < previousMove.dst;
 
                     // Is kingside? Go to square 6 (G1). If not, go to square 2 (C1)
-                    int endKingPosition = isKingside ? 6 : 2;
-                    if (ColourToMove == Colour.Black) endKingPosition += 56;
+                    Square endKingSquare = isKingside ? 6 : 2;
+                    if (ColourToMove == Colour.Black) endKingSquare += 56;
 
                     // Update king bitboard
                     bb = GetBitboardFromEnum(kingEnum);
-                    bb ^= 1UL << endKingPosition | 1UL << previousMove.src;
+                    bb ^= endKingSquare.Bitboard | previousMove.src.Bitboard;
                     SetBitboardFromEnum(kingEnum, bb);
 
                     // Get rook position
-                    int rookPosition = previousMove.src < previousMove.dst ? 5 : 3;
-                    if (kingEnum == Piece.BlackKing) rookPosition += 56;
+                    Square rookSquare = isKingside ? 5 : 3;
+                    if (kingEnum == Piece.BlackKing) rookSquare += 56;
 
                     Piece rookEnum = Piece.WhiteRook + SideToMove;
 
                     // Update rook bitboard
                     bb = GetBitboardFromEnum(rookEnum);
-                    bb ^= 1UL << rookPosition | 1UL << previousMove.dst;
+                    bb ^= rookSquare.Bitboard | previousMove.dst.Bitboard;
                     SetBitboardFromEnum(rookEnum, bb);
 
                     // Reset castling rights
                     castlingRights = previousBoardInfo.castlingRights;
 
-                    // Console.WriteLine($"[undo move {previousMove}]  src: {previousMove.src}, dst: {previousMove.dst}, rookPos: {rookPosition}, endKingPos: {endKingPosition}");
-
                     // Update board array
-                    BoardArray[endKingPosition] = Piece.Empty;
-                    BoardArray[rookPosition] = Piece.Empty;
+                    Mailbox[endKingSquare] = Piece.Empty;
+                    Mailbox[rookSquare] = Piece.Empty;
 
-                    BoardArray[previousMove.dst] = rookEnum;
-                    BoardArray[previousMove.src] = kingEnum;
+                    Mailbox[previousMove.dst] = rookEnum;
+                    Mailbox[previousMove.src] = kingEnum;
 
                     // Reset en-passant square
                     epSquare = previousBoardInfo.EPsquare;
@@ -643,21 +752,21 @@ namespace Chess960
                     if (previousBoardInfo.capturedPiece != Piece.Empty)
                     {
                         bb = GetBitboardFromEnum(previousBoardInfo.capturedPiece);
-                        bb ^= 1UL << previousMove.dst;
+                        bb ^= previousMove.dst.Bitboard;
                         SetBitboardFromEnum(previousBoardInfo.capturedPiece, bb);
                     }
 
                     // Update board array
-                    BoardArray[previousMove.src] = pawnType;
-                    BoardArray[previousMove.dst] = previousBoardInfo.capturedPiece;
+                    Mailbox[previousMove.src] = pawnType;
+                    Mailbox[previousMove.dst] = previousBoardInfo.capturedPiece;
 
                     // Update bitboards
                     bb = GetBitboardFromEnum(pawnType);
-                    bb ^= 1UL << previousMove.src;
+                    bb ^= previousMove.src.Bitboard;
                     SetBitboardFromEnum(pawnType, bb);
 
                     bb = GetBitboardFromEnum(promotedPiece);
-                    bb ^= 1UL << previousMove.dst;
+                    bb ^= previousMove.dst.Bitboard;
                     SetBitboardFromEnum(promotedPiece, bb);
 
                     break;
@@ -674,7 +783,7 @@ namespace Chess960
             List<Move> moves = [];
 
             // If there are two checkers, only generate king moves
-            if (checkers.BitCount() == 2)
+            if (checkers.BitCount == 2)
             {
                 Moves.GenerateKingMoves(
                     friendlyPieces: PlayerToMove,
@@ -732,7 +841,7 @@ namespace Chess960
             Moves.GeneratePawnMoves(
                 whitePieces: White,
                 blackPieces: Black,
-                epBitboard: epSquare,
+                epSquare: epSquare,
                 moveList: moves,
                 pinHV: pinHV,
                 pinD: pinD,
@@ -747,16 +856,38 @@ namespace Chess960
                 moveListToAddTo: moves
             );
 
-            if (checkers.BitCount() == 0) // not in check
+            if (checkers.BitCount == 0) // not in check
             {
-                Moves.GenerateCastling960Moves(
-                    board: this,
-                    moveList: moves
+                Moves.GenerateCastlingMoves(
+                    sideToMove: ColourToMove,
+                    friendlyPieces: PlayerToMove,
+                    opponentPieces: OpponentToMove,
+                    castlingRights: castlingRights,
+                    moveListToAddTo: moves
                 );
             }
 
             return moves;
         }
+
+
+        static Bitboard RayBetween(Square square1, Square square2)
+        {
+            if (square1.File == square2.File || square1.Rank == square2.Rank) // same row or file
+            {
+                return Bitmask.ForRook(square2.Bitboard, square1)
+                     & Bitmask.ForRook(square1.Bitboard, square2);
+            }
+
+            if (Math.Abs(square1.File - square2.File) == Math.Abs(square1.Rank - square2.Rank))
+            {
+                return Bitmask.ForBishop(square2.Bitboard, square1)
+                     & Bitmask.ForBishop(square1.Bitboard, square2);
+            }
+
+            throw new Exception($"cannot form ray between squares \"{square1}\" and \"{square2}\" becuase they are not on the same line.");
+        }
+
 
         public void UpdatePinsAndCheckers()
         {
@@ -801,39 +932,39 @@ namespace Chess960
             
             while (bishopAttacks)
             {
-                int sq = bishopAttacks.PopLSB();
+                Square sq = bishopAttacks.PopLSB();
 
-                Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
+                Bitboard checkray = RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount();
+                int numBlockers = blockers.BitCount;
 
                 if (numBlockers == 0)
                 {
-                    checkmask |= checkray | 1UL << sq;
-                    checkers |= 1UL << sq;
+                    checkmask |= checkray | sq.Bitboard;
+                    checkers |= sq.Bitboard;
                 }
                 else if (numBlockers == 1)
                 {
-                    pinD |= checkray | 1UL << sq | blockers;
+                    pinD |= checkray | sq.Bitboard | blockers;
                 }
             }
 
             while (rookAttacks)
             {
-                int sq = rookAttacks.PopLSB();
+                Square sq = rookAttacks.PopLSB();
 
-                Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
+                Bitboard checkray = RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount();
+                int numBlockers = blockers.BitCount;
 
                 if (numBlockers == 0)
                 {
-                    checkmask |= checkray | 1UL << sq;
-                    checkers |= 1UL << sq;
+                    checkmask |= checkray | sq.Bitboard;
+                    checkers |= sq.Bitboard;
                 }
                 else if (numBlockers == 1)
                 {
-                    pinHV |= checkray | 1UL << sq | blockers;
+                    pinHV |= checkray | sq.Bitboard | blockers;
                 }
             }
 
@@ -853,7 +984,7 @@ namespace Chess960
                 {
                     int index = rank * 8 + file;
 
-                    char stringPiece = BoardArray[index] switch
+                    char stringPiece = Mailbox[index] switch
                     {
                         Piece.WhitePawn => 'P',
                         Piece.WhiteBishop => 'B',
@@ -881,20 +1012,25 @@ namespace Chess960
             return string.Join("\n", board);
         }
 
-        public void CheckForRepetitions()
+        public bool ViolatedRepetitionRule()
         {
-            Dictionary<Move, int> pastMoves = new();
+            Dictionary<ulong, int> pastHashes = [];
 
-            foreach (Move pastMove in moveHistory)
+            foreach (ulong pastHash in PastZobristHashes)
             {
-                pastMoves[pastMove] = pastMoves.ContainsKey(pastMove) ? pastMoves[pastMove] + 1 : 1;
-
-                if (pastMoves.ContainsValue(3))
+                if (!pastHashes.TryAdd(pastHash, 1))
                 {
-                    throw new Exception($"repeated position 3 times. Move that triggered this: {pastMove}");
+                    // If we have found 2 repetitions already, this
+                    // third one means we have violated the three-
+                    // fold repetition rule.
+                    if (pastHashes[pastHash]++ == 2) return true;
                 }
             }
+
+            return false;
         }
+
+        public bool Violated50MoveRule() => halfMoveClock > 100;
 
         private string GetFEN()
         {
@@ -910,7 +1046,7 @@ namespace Chess960
                 {
                     int index = rank * 8 + file;
 
-                    if (BoardArray[index] == Piece.Empty)
+                    if (Mailbox[index] == Piece.Empty)
                     {
                         emptySpaces++;
                     }
@@ -922,7 +1058,7 @@ namespace Chess960
                             emptySpaces = 0;
                         }
                         
-                        line += BoardArray[index] switch
+                        line += Mailbox[index] switch
                         {
                             Piece.WhiteBishop => 'B',
                             Piece.BlackBishop => 'b',
@@ -937,7 +1073,7 @@ namespace Chess960
                             Piece.WhiteKing   => 'K',
                             Piece.BlackKing   => 'k',
                             
-                            _ => throw new Exception($"piece enum {BoardArray[index]} unaccounted for while constructing FEN string.")
+                            _ => throw new Exception($"piece enum {Mailbox[index]} unaccounted for while constructing FEN string.")
                         };
                     }
                 }
@@ -953,30 +1089,10 @@ namespace Chess960
 
             string FEN = string.Join("/", linesOfFEN.Reverse());
 
-            // Add the side to move
-            string[] sidesToMove = ["w", "b"];
-            FEN += " " + sidesToMove[SideToMove];
-
-            // Add the castling rights
-            FEN += $" {castlingRights}";
-
-            // Add the en-passant square
-            if (epSquare == 0)
-            {
-                FEN += " -";
-            }
-            else
-            {
-                int sq = epSquare.PopLSB();
-                string sqName = $"{"abcedfgh"[sq % 8]}{"12345678"[sq / 8]}";
-                FEN += " " + sqName;
-            }
-
-            // Add halftime move counter
-            FEN += $" {halfMoveClock}";
-
-            // Add fulltime move counter
-            FEN += " " + Convert.ToString((moveCounter - SideToMove) / 2);
+            // Add all the other properties of the FEN string.
+            // Half-move clock is treated as a 100-move clock so that's
+            // why we need to halve it before adding it to the FEN string.
+            FEN += $" {(ColourToMove == Colour.White ? "w" : "b")} {castlingRights} {epSquare} {halfMoveClock / 2} {(moveCounter - SideToMove) / 2}";
             
             return FEN;
         }

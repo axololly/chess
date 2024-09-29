@@ -1,4 +1,3 @@
-using Types.CastlingRights;
 using Types.Bitboards;
 
 using Chess.Utilities;
@@ -7,10 +6,10 @@ using Chess.Bitmasks;
 using Chess.Tables;
 
 using Chess960;
-using Chess960.Castling;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using Types.Squares;
 
 namespace Chess.MoveGen
 {
@@ -35,8 +34,8 @@ namespace Chess.MoveGen
 
     public struct Move // TODO: find out what needs Move to be partial
     {
-        public int src; // Where the move starts
-        public int dst; // Where the move ends
+        public Square src; // Where the move starts
+        public Square dst; // Where the move ends
         public MoveType type = MoveType.Normal; // Type of move
         public PromoPiece promoPiece = PromoPiece.None;
 
@@ -304,7 +303,7 @@ namespace Chess.MoveGen
             Colour side,
             PieceSet whitePieces,
             PieceSet blackPieces,
-            Bitboard epBitboard,
+            Square epSquare,
             Bitboard checkmask,
             Bitboard pinHV,
             Bitboard pinD,
@@ -396,12 +395,11 @@ namespace Chess.MoveGen
             // -----------------------------------------------------------------------------------------------------------------
 
             // If there's no en-passant square, return here
-            if (!epBitboard) return;
+            if (!epSquare) return;
 
-            int epSquare = epBitboard.ReadLSB();
             int epPawn   = epSquare - pawnShifts[1];
             
-            Bitboard epMask = epBitboard | 1UL << epPawn;
+            Bitboard epMask = epSquare.Bitboard | 1UL << epPawn;
 
             // If the en-passant square and the enemy pawn are not on
             // the checkmask, then en-passant is not available.
@@ -416,7 +414,10 @@ namespace Chess.MoveGen
 
             // Pawns pinned orthogonally cannot take any pieces because
             // they would leave their pinmask.
-            Bitboard pawnsAttackingEP = pawns & ~pinnedHVpawns & (epBitboard.Shift(downLeft) | epBitboard.Shift(downRight));
+            Bitboard pawnsAttackingEP = pawns & ~pinnedHVpawns & (
+                                        epSquare.Bitboard.Shift(downLeft)
+                                      | epSquare.Bitboard.Shift(downRight)
+                                    );
 
             while (pawnsAttackingEP)
             {
