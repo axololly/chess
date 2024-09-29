@@ -1,4 +1,4 @@
-# Chess Move Generator v1.1.0
+# Chess Move Generator v1.1.1
 
 If you can't beat em, join em. And that's what I did when I stayed inside for the last month every evening developing this chess move generator.
 
@@ -47,7 +47,7 @@ When checking for violation of the 50-move rule, I handled the clock wrong in tw
 
 Fixing these issues was fairly easy: for the first one, I can just treat it as a 100-move clock and then in the FEN strings, divide it by 2 and discard any stray halves, and for the second one, I just had to check that the piece moving was a white or black pawn.
 
-All of these fixes will be present in version `v1.1.0` of the NuGet package.
+All of these fixes will be present in version `v1.1.1` of the NuGet package.
 
 ## Statistics
 

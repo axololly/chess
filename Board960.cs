@@ -11,14 +11,14 @@ namespace Chess960
 {
     public class Board960
     {
-        private Piece[] Mailbox;
-        private PieceSet White;
-        private PieceSet Black;
+        public Piece[] Mailbox;
+        public PieceSet White;
+        public PieceSet Black;
         public int moveCounter;
         public uint halfMoveClock;
         public CastlingRights castlingRights; // 0b1111 => KQkq
         public Stack<Move> moveHistory = new();
-        private Stack<BoardInfo> boardHistory = new();
+        public Stack<BoardInfo> boardHistory = new();
 
         public Bitboard pinHV;
         public Bitboard pinD;
