@@ -26,17 +26,20 @@ namespace Chess.Castling
         {
             int n = 0;
 
-            foreach (char right in castlingRights)
+            if (castlingRights != "-")
             {
-                n |= right switch
+                foreach (char right in castlingRights)
                 {
-                    'K' => 0b1000,
-                    'Q' => 0b0100,
-                    'k' => 0b0010,
-                    'q' => 0b0001,
+                    n |= right switch
+                    {
+                        'K' => 0b1000,
+                        'Q' => 0b0100,
+                        'k' => 0b0010,
+                        'q' => 0b0001,
 
-                    _ => throw new Exception($"illegal castling right '{right}' found.")
-                };
+                        _ => throw new Exception($"illegal castling right '{right}' found.")
+                    };
+                }
             }
 
             return new CastlingRights() { castlingBits = n };

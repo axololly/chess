@@ -136,7 +136,7 @@ namespace Chess
         public Square epSquare;
 
         public ulong ZobristKey { get; set; }
-        public List<ulong> PastZobristHashes { get; set; }
+        public Stack<ulong> PastZobristHashes { get; set; }
 
         public Board(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
         {            
@@ -311,7 +311,7 @@ namespace Chess
 
             moveCounter = currentDoubleMoveNumber * 2 + sideToMoveIncrease;
 
-            ZobristKey ^= Zobrist.HashColor(ColourToMove);
+            ZobristKey ^= Zobrist.HashColor((Colour)(sideToMoveIncrease ^ 1));
 
             // Set castling rights
             castlingRights = CastlingRights.FromString(FENcastlingRights);
@@ -331,7 +331,14 @@ namespace Chess
 
             ZobristKey ^= Zobrist.HashEnPassant(epSquare);
 
+            PastZobristHashes.Push(ZobristKey);
+
             UpdatePinsAndCheckers();
+
+            if (ViolatedRepetitionRule() || Violated50MoveRule())
+            {
+                throw new Exception($"cannot construct position: violated repetition rule. Game is already a draw.");
+            }
         }
 
 
@@ -392,13 +399,10 @@ namespace Chess
 
         public void MakeMove(Move move)
         {
-            if (ViolatedRepetitionRule()) throw new Exception($"cannot play move {move}: violated repetition rule. Game is already a draw.");
-            
-            // Find out the move and board info of the previous move
-            // (Important for zobrist hashing)
-            Move previousMove = moveHistory.Peek();
-            BoardInfo previousBoardInfo = boardHistory.Peek();
-            Piece pieceThatLastMoved = Mailbox[previousMove.dst];
+            if (ViolatedRepetitionRule() || Violated50MoveRule())
+            {
+                throw new Exception($"cannot play move {move}: violated repetition rule. Game is already a draw.");
+            }
 
             // Archive move
             moveHistory.Push(move);
@@ -434,14 +438,14 @@ namespace Chess
                             break;
 
                         case Piece.WhiteRook:
-                            if (move.src == 0) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
-                            if (move.src == 7) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
+                            if (move.src == Squares.A1) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
+                            if (move.src == Squares.H1) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
 
                             break;
                         
                         case Piece.BlackRook:
-                            if (move.src == 56) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
-                            if (move.src == 63) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
+                            if (move.src == Squares.A8) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
+                            if (move.src == Squares.H8) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
                             
                             break;
 
@@ -463,7 +467,7 @@ namespace Chess
                         if (pieceCaptured == Piece.WhiteRook)
                         {
                             if (move.dst == Squares.A1) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
-                            if (move.dst == Squares.H1) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
+                            if (move.dst == Squares.H1) castlingRights.DisableKingside (Colour.White); // starting kingside rook position
                         }
 
                         if (pieceCaptured == Piece.BlackRook)
@@ -493,7 +497,10 @@ namespace Chess
                     // Update zobrist hash
                     // After playing EP, there won't be another EP square,
                     // so we don't need to re-XOR to the hash.
-                    ZobristKey ^= Zobrist.HashEnPassant(previousBoardInfo.EPsquare);
+                    if (boardHistory.TryPeek(out BoardInfo previousBoardInfo))
+                    {
+                        ZobristKey ^= Zobrist.HashEnPassant(previousBoardInfo.EPsquare);
+                    }
 
                     // Update bitboard of piece
                     bb = GetBitboardFromEnum(pieceToMove);
@@ -501,14 +508,13 @@ namespace Chess
                     SetBitboardFromEnum(pieceToMove, bb);
 
                     // Get square of pawn to capture
-                    int inFrontOfEPsquare = move.dst - 8 * (move.src < move.dst ? 1 : -1);
+                    Square inFrontOfEPsquare = move.dst - 8 * (move.src < move.dst ? 1 : -1);
                     
                     Piece opponentPawnType = Mailbox[inFrontOfEPsquare];
                     
                     // Remove pawn from bitboard and update it
                     Bitboard opponentPawnBB = GetBitboardFromEnum(opponentPawnType);
-
-                    opponentPawnBB ^= 1UL << inFrontOfEPsquare;
+                    opponentPawnBB ^= inFrontOfEPsquare.Bitboard;
                     SetBitboardFromEnum(opponentPawnType, opponentPawnBB);
 
                     // Remove pawn from board array
@@ -565,8 +571,8 @@ namespace Chess
                     else if (move.dst == Squares.G1) rookSquare = Squares.H1;
                     
                     // Black castling squares 
-                    else if (move.dst == Squares.G1) rookSquare = Squares.H1;
-                    else if (move.dst == Squares.G1) rookSquare = Squares.H1;
+                    else if (move.dst == Squares.C8) rookSquare = Squares.A8;
+                    else if (move.dst == Squares.G8) rookSquare = Squares.H8;
 
                     else throw new Exception($"invalid castling destination square: {move.dst} (Move: {move})");
 
@@ -610,14 +616,14 @@ namespace Chess
                     {
                         if (pieceCaptured == Piece.WhiteRook)
                         {
-                            if (move.src == Squares.A1) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
-                            if (move.src == Squares.H1) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
+                            if (move.dst == Squares.A1) castlingRights.DisableQueenside(Colour.White); // starting queenside rook position
+                            if (move.dst == Squares.H1) castlingRights.DisableKingside(Colour.White); // starting kingside rook position
                         }
 
                         if (pieceCaptured == Piece.BlackRook)
                         {
-                            if (move.src == Squares.A8) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
-                            if (move.src == Squares.H8) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
+                            if (move.dst == Squares.A8) castlingRights.DisableQueenside(Colour.Black); // starting queenside rook position
+                            if (move.dst == Squares.H8) castlingRights.DisableKingside (Colour.Black); // starting kingside rook position
                         }
 
                         boardInfo.capturedPiece = pieceCaptured;
@@ -654,16 +660,34 @@ namespace Chess
             else halfMoveClock++;
 
             // Remove it from the zobrist hash
-            ZobristKey ^= Zobrist.HashPieceAndSquare(pieceThatLastMoved, previousMove.src);
+            /*
+            if (moveHistory.TryPeek(out Move previousMove))
+            {
+                ZobristKey ^= Zobrist.HashPieceAndSquare(
+                    previousMove.type == MoveType.Promotion
+                        ? Piece.BlackPawn - SideToMove
+                        : Mailbox[previousMove.dst],
+                    previousMove.dst
+                );
+            }
+            */
 
             // Add the newly moved piece to the zobrist hash
             ZobristKey ^= Zobrist.HashPieceAndSquare(pieceToMove, move.src);
+            ZobristKey ^= Zobrist.HashPieceAndSquare(pieceToMove, move.dst);
+
+            // Add the piece if captured - defaults to 0 internally if no piece
+            // was captured this move.
+            ZobristKey ^= Zobrist.HashPieceAndSquare(pieceCaptured, move.dst);
 
             // Remove the hash for the previous player
-            ZobristKey ^= Zobrist.HashColor((Colour)(SideToMove ^ 1));
+            // ZobristKey ^= Zobrist.HashColor((Colour)(SideToMove ^ 1));
 
             // Add the hash for the current player
             ZobristKey ^= Zobrist.HashColor(ColourToMove);
+
+            // Add the hash to the list of past hashes
+            PastZobristHashes.Push(ZobristKey);
             
             boardHistory.Push(boardInfo);
             
@@ -672,6 +696,10 @@ namespace Chess
 
         public void UndoMove()
         {
+            PastZobristHashes.Pop();
+
+            ZobristKey = PastZobristHashes.Peek();
+
             if (moveHistory.Count == 0) throw new Exception("cannot undo when no moves on the board have been played.");
 
             // Get last move and last board info
@@ -1100,8 +1128,23 @@ namespace Chess
 
         public bool ViolatedRepetitionRule()
         {
-            // TODO: Add zobrist hashing detection in this
+            Dictionary<ulong, int> pastHashes = [];
+
+            foreach (ulong pastHash in PastZobristHashes)
+            {
+                if (!pastHashes.TryAdd(pastHash, 1))
+                {
+                    // If we have found 2 repetitions already, this
+                    // third one means we have violated the three-
+                    // fold repetition rule.
+                    if (pastHashes[pastHash]++ == 2) return true;
+                }
+            }
+
+            return false;
         }
+
+        public bool Violated50MoveRule() => halfMoveClock > 100;
 
         private string GetFEN()
         {

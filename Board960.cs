@@ -4,6 +4,7 @@ using Chess.Utilities;
 using Chess.MoveGen;
 using Chess.Bitmasks;
 using Types.Bitboards;
+using Types.Squares;
 
 namespace Chess960
 {
@@ -31,7 +32,7 @@ namespace Chess960
         public PieceSet PlayerToMove { get { return SideToMove == 0 ? White : Black; } }
         public PieceSet OpponentToMove { get { return SideToMove == 0 ? Black : White; }}
 
-        public Bitboard epSquare;
+        public Square epSquare;
 
         public int[] rookStarts = [-1, -1, -1, -1];
 
@@ -171,16 +172,7 @@ namespace Chess960
 
             halfMoveClock = HTC;
 
-            // Set an en-passant square
-            if (epSquareString != "-")
-            {
-                int rank = "12345678".IndexOf(epSquareString[1]);
-                int file = "abcdefgh".IndexOf(epSquareString[0]);
-
-                int epSquareIndex = rank * 8 + file;
-
-                epSquare = 1UL << epSquareIndex;
-            }
+            epSquare = new(epSquareString);
 
             UpdatePinsAndCheckers();
         }
@@ -367,7 +359,7 @@ namespace Chess960
                     // middle square between the start and end of the
                     // double pawn push.
                     int newEPsquare = (move.src + move.dst) / 2;
-                    epSquare = 1UL << newEPsquare;
+                    epSquare = newEPsquare;
                     
                     // Update piece bitboard
                     bb = GetBitboardFromEnum(pieceToMove);
@@ -674,7 +666,7 @@ namespace Chess960
             List<Move> moves = [];
 
             // If there are two checkers, only generate king moves
-            if (checkers.BitCount() == 2)
+            if (checkers.BitCount == 2)
             {
                 Moves.GenerateKingMoves(
                     friendlyPieces: PlayerToMove,
@@ -732,7 +724,7 @@ namespace Chess960
             Moves.GeneratePawnMoves(
                 whitePieces: White,
                 blackPieces: Black,
-                epBitboard: epSquare,
+                epSquare: epSquare,
                 moveList: moves,
                 pinHV: pinHV,
                 pinD: pinD,
@@ -747,7 +739,7 @@ namespace Chess960
                 moveListToAddTo: moves
             );
 
-            if (checkers.BitCount() == 0) // not in check
+            if (checkers.BitCount == 0) // not in check
             {
                 Moves.GenerateCastling960Moves(
                     board: this,
@@ -805,7 +797,7 @@ namespace Chess960
 
                 Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount();
+                int numBlockers = blockers.BitCount;
 
                 if (numBlockers == 0)
                 {
@@ -824,7 +816,7 @@ namespace Chess960
 
                 Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount();
+                int numBlockers = blockers.BitCount;
 
                 if (numBlockers == 0)
                 {
@@ -953,30 +945,8 @@ namespace Chess960
 
             string FEN = string.Join("/", linesOfFEN.Reverse());
 
-            // Add the side to move
-            string[] sidesToMove = ["w", "b"];
-            FEN += " " + sidesToMove[SideToMove];
-
-            // Add the castling rights
-            FEN += $" {castlingRights}";
-
-            // Add the en-passant square
-            if (epSquare == 0)
-            {
-                FEN += " -";
-            }
-            else
-            {
-                int sq = epSquare.PopLSB();
-                string sqName = $"{"abcedfgh"[sq % 8]}{"12345678"[sq / 8]}";
-                FEN += " " + sqName;
-            }
-
-            // Add halftime move counter
-            FEN += $" {halfMoveClock}";
-
-            // Add fulltime move counter
-            FEN += " " + Convert.ToString((moveCounter - SideToMove) / 2);
+            // Add the side to move, castlign rights, en-passant square and move counters
+            FEN += $" {(ColourToMove == Colour.White ? "w" : "b")} {castlingRights} {epSquare} {halfMoveClock / 2} {(moveCounter - SideToMove) / 2}";
             
             return FEN;
         }

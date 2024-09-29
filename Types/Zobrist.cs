@@ -62,7 +62,7 @@ namespace Types.Zobrist
 
         public static ulong HashPieceAndSquare(Piece piece, Square square)
         {
-            return Keys[
+            return piece == Piece.Empty ? 0 : Keys[
                 Offsets.PieceSquares
                 + square * 12
                 + (int)piece
