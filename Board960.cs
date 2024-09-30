@@ -113,7 +113,7 @@ namespace Chess960
 
                     case 'r':
                         Mailbox[cursor] = Piece.BlackRook;
-                        Black.Knights |= 1UL << cursor;
+                        Black.Rooks |= 1UL << cursor;
                         
                         ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackRook, cursor);
                         
@@ -161,7 +161,7 @@ namespace Chess960
 
                     case 'R':
                         Mailbox[cursor] = Piece.WhiteRook;
-                        White.Knights |= 1UL << cursor;
+                        White.Rooks |= 1UL << cursor;
                         
                         ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhiteRook, cursor);
                         
@@ -639,7 +639,7 @@ namespace Chess960
                     if (previousBoardInfo.capturedPiece != Piece.Empty)
                     {
                         bb = GetBitboardFromEnum(previousBoardInfo.capturedPiece);
-                        bb ^= 1UL << previousMove.dst.Bitboard;
+                        bb ^= previousMove.dst.Bitboard;
                         SetBitboardFromEnum(previousBoardInfo.capturedPiece, bb);
                     }
 
@@ -654,7 +654,7 @@ namespace Chess960
                     
                     // Update bitboard of that piece
                     bb = GetBitboardFromEnum(pawnType);
-                    bb ^= 1UL << previousMove.dst.Bitboard | 1UL << previousMove.src.Bitboard;
+                    bb ^= previousMove.dst.Bitboard | previousMove.src.Bitboard;
                     SetBitboardFromEnum(pawnType, bb);
 
                     Piece opponentPawnType = Piece.BlackPawn - SideToMove;

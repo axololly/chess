@@ -54,7 +54,7 @@ namespace Chess.Perft
             ulong total = 0;
 
             foreach (Move next in nextMoves)
-            {                
+            {
                 board.MakeMove(next);
 
                 ulong nodes = BasePerftTest(board, depth - 1, bulk);

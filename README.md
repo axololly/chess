@@ -1,4 +1,4 @@
-# Chess Move Generator v1.1.2
+# Chess Move Generator v1.1.3
 
 If you can't beat em, join em. And that's what I did when I stayed inside for the last month every evening developing this chess move generator.
 
@@ -49,7 +49,9 @@ Fixing these issues was fairly easy: for the first one, I can just treat it as a
 
 Another issue arose where after a double-push move like `1. e4`, it was erroring because it couldn't find the rank the en-passant pawn was on. Either way, that's solved now.
 
-All of these fixes will be present in version `v1.1.2` of the NuGet package.
+Another error I found was doing `1UL << someSquare.Bitboard`, which, under the hood, is literally `1UL << (1UL << someSquare)`, creating some sort of super bitboard. That's all fixed now, and I don't have to deal with that anymore.
+
+All of these fixes will be present in version `v1.1.3` of the NuGet package.
 
 ## Statistics
 
@@ -59,17 +61,17 @@ Quick section about the statistics of this project:
 
 |File name|Lines|Characters|File size|
 |:-|:-:|:-:|:-:|
-|`Board.cs`|1,201|46,385|46.47 KB|       
-|`Board960.cs`|1,082|42,780|42.83 KB|    
+|`Board.cs`|1,201|46,377|46.46 KB|
+|`Board960.cs`|1,082|42,751|42.8 KB|
 |`Bitmasks.cs`|86|2,679|2.7 KB|
-|`Bitboard.cs`|119|3,820|3.85 KB|        
-|`Castling.cs`|210|7,900|7.92 KB|        
-|`Generator.cs`|562|19,428|19.52 KB|     
+|`Bitboard.cs`|119|3,820|3.85 KB|
+|`Castling.cs`|210|7,900|7.92 KB|
+|`Generator.cs`|562|19,424|19.52 KB|
 |`MagicBitboards.cs`|318|17,169|17.08 KB|
-|`Perft.cs`|358|11,564|11.64 KB|
+|`Perft.cs`|358|11,548|11.63 KB|
 |`Square.cs`|132|5,244|5.25 KB|
 |`Tables.cs`|59|1,851|1.86 KB|
-|`Utilities.cs`|232|7,451|7.5 KB|        
+|`Utilities.cs`|225|7,219|7.27 KB|
 |`Zobrist.cs`|83|2,153|2.18 KB|
 
 ## Using my project

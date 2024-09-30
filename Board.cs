@@ -211,7 +211,7 @@ namespace Chess
 
                     case 'r':
                         Mailbox[cursor] = Piece.BlackRook;
-                        Black.Knights |= 1UL << cursor;
+                        Black.Rooks |= 1UL << cursor;
                         
                         ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.BlackRook, cursor);
                         
@@ -259,7 +259,7 @@ namespace Chess
 
                     case 'R':
                         Mailbox[cursor] = Piece.WhiteRook;
-                        White.Knights |= 1UL << cursor;
+                        White.Rooks |= 1UL << cursor;
                         
                         ZobristKey ^= Zobrist.HashPieceAndSquare(Piece.WhiteRook, cursor);
                         
@@ -737,7 +737,7 @@ namespace Chess
                     if (previousBoardInfo.capturedPiece != Piece.Empty)
                     {
                         bb = GetBitboardFromEnum(previousBoardInfo.capturedPiece);
-                        bb ^= 1UL << previousMove.dst.Bitboard;
+                        bb ^= previousMove.dst.Bitboard;
                         SetBitboardFromEnum(previousBoardInfo.capturedPiece, bb);
                     }
 
@@ -752,7 +752,7 @@ namespace Chess
                     
                     // Update bitboard of that piece
                     bb = GetBitboardFromEnum(pawnType);
-                    bb ^= 1UL << previousMove.dst.Bitboard | 1UL << previousMove.src.Bitboard;
+                    bb ^= previousMove.dst.Bitboard | previousMove.src.Bitboard;
                     SetBitboardFromEnum(pawnType, bb);
 
                     Piece opponentPawnType = Piece.BlackPawn - SideToMove;
@@ -1193,7 +1193,7 @@ namespace Chess
             // Add all the other properties of the FEN string.
             // Half-move clock is treated as a 100-move clock so that's
             // why we need to halve it before adding it to the FEN string.
-            FEN += $" {(ColourToMove == Colour.White ? "w" : "b")} {castlingRights} {epSquare} {halfMoveClock / 2} {(moveCounter - SideToMove) / 2}";
+            FEN += $" {(ColourToMove == Colour.White ? "w" : "b")} {castlingRights} {epSquare.ToString().ToLower()} {halfMoveClock / 2} {(moveCounter - SideToMove) / 2}";
             
             return FEN;
         }
