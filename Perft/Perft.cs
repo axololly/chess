@@ -28,6 +28,8 @@ namespace Chess.Perft
 
     public static class Perft
     {
+        public static string Kiwipete { get { return "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"; } }
+
         public static ulong BasePerftTest(Board board, int depth, bool bulk = true)
         {
             if (depth == 0) return 1;
@@ -234,6 +236,8 @@ namespace Chess.Perft
 
     public static class Perft960
     {
+        public static string Kiwipete { get { return "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w HAha - 0 1"; } }
+
         public static ulong BasePerftTest(Board960 board, int depth, bool bulk = true)
         {
             if (depth == 0) return 1;
@@ -267,6 +271,8 @@ namespace Chess.Perft
 
                 ulong nodes = BasePerftTest(board, depth - 1, bulk);
                 total += nodes;
+
+                Console.WriteLine($"{next} - {nodes}");
 
                 board.UndoMove();
             }

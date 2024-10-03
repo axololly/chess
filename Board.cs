@@ -141,8 +141,10 @@ namespace Chess
         public bool InCheck { get { return checkers.BitCount > 0; } }
         public bool IsDraw { get { return Violated50MoveRule() || ViolatedRepetitionRule(); } }
 
-        public Board(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        public Board(string? FEN = null)
         {
+            FEN ??= "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
             // Create piece sets for each side
             White = new(Colour.White);
             Black = new(Colour.Black);
@@ -181,7 +183,7 @@ namespace Chess
                 // If the current character is a number (eg. N)
                 if (int.TryParse(c.ToString(), out int emptySpaces))
                 {
-                    // Add N empty spaces to the 
+                    // Add N empty spaces to the mailbox
                     for (int i = 0; i < emptySpaces; i++)
                     {
                         Mailbox[cursor++] = Piece.Empty;
@@ -192,8 +194,9 @@ namespace Chess
                 }
 
                 // Pattern match each character in the FEN string to its
-                // relative Piece enum to be inserted into the board and
-                // add a bit to the corresponding part of each bitboard.
+                // relative Piece enum to be inserted into the board, then
+                // add a bit to the corresponding part of each bitboard
+                // and add its relative hash to the Zobrist key.
                 switch (c)
                 {
                     case 'b':

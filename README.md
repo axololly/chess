@@ -1,10 +1,58 @@
-# Chess Move Generator v1.1.4
+# Chess Move Generator v1.1.5
 
 If you can't beat em, join em. And that's what I did when I stayed inside for the last month every evening developing this chess move generator.
 
 _If I ever hate myself enough to make a Python version, I'll link it here._
 
 Documentation will probably be coming soon, although I'm not sure whether I should include docstrings, manually written documentation in markdown, or both. I'll decide at some point. Right now, I have cooler stuff to be making.
+
+## Using my project
+
+Quick heads up: I used `.NET 8.0` for this.
+
+If you want to use this library in your own code, you can find it on NuGet under the name `Axololly.Chess.MoveGenerator`. A new version was published because I'm a little bit dumb and I missed a few things.
+
+I'll probably add PGN inputting and outputting at some point. Don't hold me accountable for this.
+
+### Example Code
+
+```cs
+using Chess;
+using Chess.MoveGen; // Used for the Move struct
+
+class Program
+{
+    static void Main()
+    {
+        // Create an empty board.
+        // Use a null value because structs will default to null
+        // if you use the parameterless constructor. 
+        Board board = new(null);
+
+        // Get a list of the next moves
+        List<Move> nextMoves = board.GenerateLegalMoves();
+
+        // Print out the board and print out the next possible moves.
+        Console.WriteLine($"Board:\n{board}\n");
+        Console.WriteLine($"Next moves: [{string.Join(", ", nextMoves)}]");
+    }
+}
+```
+
+### Result
+```yml
+Board:
+r n b q k b n r
+p p p p p p p p
+. . . . . . . .
+. . . . . . . .
+. . . . . . . .
+. . . . . . . .
+P P P P P P P P
+R N B Q K B N R
+
+Next moves: [b1a3, b1c3, g1f3, g1h3, a2a3, b2b3, c2c3, d2d3, e2e3, f2f3, g2g3, h2h3, a2a4, b2b4, c2c4, d2d4, e2e4, f2f4, g2g4, h2h4]
+```
 
 ## Fixes
 
@@ -51,7 +99,11 @@ Another issue arose where after a double-push move like `1. e4`, it was erroring
 
 Another error I found was doing `1UL << someSquare.Bitboard`, which, under the hood, is literally `1UL << (1UL << someSquare)`, creating some sort of super bitboard. That's all fixed now, and I don't have to deal with that anymore.
 
-All of these fixes will be present in version `v1.1.4` of the NuGet package.
+### Structs
+
+Another bunch of errors came when making the board into a struct. Turns out all structs spawn with an empty parameterless constructor, so instead of making a board off a default value, it was literally just making a `null` board value, raising a ton of errors when trying to operate on that board. This is fixed now. :thumbsup:
+
+All of these fixes will be present in version `v1.1.5` of the NuGet package.
 
 ## Statistics
 
@@ -73,48 +125,6 @@ Quick section about the statistics of this project:
 |`Tables.cs`|59|1,851|1.86 KB|
 |`Utilities.cs`|225|7,219|7.27 KB|       
 |`Zobrist.cs`|83|2,153|2.18 KB|
-
-## Using my project
-
-Quick heads up: I used `.NET 8.0` for this.
-
-If you want to use this library in your own code, you can find it on NuGet under the name `Axololly.Chess.MoveGenerator`. A new version was published because I'm a little bit dumb and I missed a few things.
-
-I'll probably add PGN inputting and outputting at some point. Don't hold me accountable for this.
-
-### Example Code
-
-```cs
-using Chess;
-
-class Program
-{
-    static void Main()
-    {
-        Board board = new();
-
-        var nextMoves = board.GenerateLegalMoves();
-
-        Console.WriteLine($"Board:\n{board}\n");
-        Console.WriteLine($"Next moves: [{string.Join(", ", nextMoves)}]");
-    }
-}
-```
-
-### Result
-```yml
-Board:
-r n b q k b n r
-p p p p p p p p
-. . . . . . . .
-. . . . . . . .
-. . . . . . . .
-. . . . . . . .
-P P P P P P P P
-R N B Q K B N R
-
-Next moves: [b1a3, b1c3, g1f3, g1h3, a2a3, b2b3, c2c3, d2d3, e2e3, f2f3, g2g3, h2h3, a2a4, b2b4, c2c4, d2d4, e2e4, f2f4, g2g4, h2h4]
-```
 
 ### Note about Chess960
 
@@ -184,6 +194,8 @@ If you want to perft test my own project, you can do it with the `Perft` and `Pe
 |Output|`.OutputPerftTest()`|Redirects the console output into a file for further review.|
 
 All of these work with Chess960 boards - you just need to use `Perft960` instead of `Perft`.
+
+There's also a `.Kiwipete` property that holds the FEN string for the Kiwipete versions of Chess and Chess960.
 
 ## Thanks
 
