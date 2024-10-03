@@ -43,8 +43,10 @@ namespace Chess960
         public bool InCheck { get { return checkers.BitCount > 0; } }
         public bool IsDraw { get { return Violated50MoveRule() || ViolatedRepetitionRule(); } }
 
-        public Board960(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        public Board960(string? FEN)
         {
+            FEN ??= "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+            
             // Create piece sets for each side
             White = new(Colour.White);
             Black = new(Colour.Black);

@@ -1,4 +1,4 @@
-# Chess Move Generator v1.1.5
+# Chess Move Generator v1.1.6
 
 If you can't beat em, join em. And that's what I did when I stayed inside for the last month every evening developing this chess move generator.
 
@@ -103,7 +103,7 @@ Another error I found was doing `1UL << someSquare.Bitboard`, which, under the h
 
 Another bunch of errors came when making the board into a struct. Turns out all structs spawn with an empty parameterless constructor, so instead of making a board off a default value, it was literally just making a `null` board value, raising a ton of errors when trying to operate on that board. This is fixed now. :thumbsup:
 
-All of these fixes will be present in version `v1.1.5` of the NuGet package.
+All of these fixes will be present in version `v1.1.6` of the NuGet package.
 
 ## Statistics
 
@@ -113,17 +113,17 @@ Quick section about the statistics of this project:
 
 |File name|Lines|Characters|File size|
 |:-|:-:|:-:|:-:|
-|`Board.cs`|1,186|46,139|46.21 KB|       
-|`Board960.cs`|1,074|42,739|42.79 KB|    
+|`Board.cs`|1,189|46,245|46.32 KB|       
+|`Board960.cs`|1,076|42,772|42.82 KB|    
 |`Bitmasks.cs`|86|2,679|2.7 KB|
 |`Bitboard.cs`|119|3,820|3.85 KB|        
 |`Castling.cs`|210|7,900|7.92 KB|        
 |`Generator.cs`|562|19,424|19.52 KB|     
 |`MagicBitboards.cs`|318|17,169|17.08 KB|
-|`Perft.cs`|358|11,548|11.63 KB|
+|`Perft.cs`|364|11,865|11.94 KB|
 |`Square.cs`|132|5,244|5.25 KB|
 |`Tables.cs`|59|1,851|1.86 KB|
-|`Utilities.cs`|225|7,219|7.27 KB|       
+|`Utilities.cs`|222|7,160|7.21 KB|       
 |`Zobrist.cs`|83|2,153|2.18 KB|
 
 ### Note about Chess960

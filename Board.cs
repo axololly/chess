@@ -141,7 +141,7 @@ namespace Chess
         public bool InCheck { get { return checkers.BitCount > 0; } }
         public bool IsDraw { get { return Violated50MoveRule() || ViolatedRepetitionRule(); } }
 
-        public Board(string? FEN = null)
+        public Board(string? FEN)
         {
             FEN ??= "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -557,7 +557,7 @@ namespace Chess
                     epSquare = 0;
                     
                     // Reset castling rights depending on side
-                    castlingRights.DisableBoth(ColourToMove);
+                    castlingRights.DisableBoth((Colour)(SideToMove ^ 1));
 
                     // Update zobrist hash with new castling rights
                     ZobristKey ^= Zobrist.HashCastlingRights(castlingRights);
@@ -812,7 +812,7 @@ namespace Chess
                     else if (previousMove.dst == Squares.G1) endRookSquare = Squares.H1;
                     
                     // Black castling squares 
-                    else if (previousMove.dst == Squares.C8) endRookSquare = Squares.G8;
+                    else if (previousMove.dst == Squares.C8) endRookSquare = Squares.A8;
                     else if (previousMove.dst == Squares.G8) endRookSquare = Squares.H8;
 
                     else throw new Exception($"invalid rook square \"{previousMove.dst}\" for castling.");
