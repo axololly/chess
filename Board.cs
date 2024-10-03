@@ -109,7 +109,7 @@ namespace Chess
         public BoardInfo() {}
     }
 
-    public class Board
+    public struct Board
     {
         public Piece[] Mailbox;
         public PieceSet White;
@@ -137,6 +137,9 @@ namespace Chess
 
         public ulong ZobristKey { get; set; }
         public Stack<ulong> PastZobristHashes { get; set; }
+
+        public bool InCheck { get { return checkers.BitCount > 0; } }
+        public bool IsDraw { get { return Violated50MoveRule() || ViolatedRepetitionRule(); } }
 
         public Board(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
         {
@@ -349,13 +352,6 @@ namespace Chess
 
         public Bitboard GetBitboardFromEnum(Piece pieceEnum)
         {
-            Move getLastMovePlayed()
-            {
-                var T = moveHistory.Pop();
-                moveHistory.Push(T);
-                return T;
-            }
-
             return pieceEnum switch
             {
                 Piece.BlackBishop =>  Black.Bishops,
@@ -372,7 +368,7 @@ namespace Chess
                 Piece.WhiteRook   =>  White.Rooks,
                 Piece.WhiteKing   =>  White.King,
 
-                Piece.Empty => throw new Exception($"cannot obtain bitboard for an empty piece on move {getLastMovePlayed()}.\nBoard:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\nPerhaps your start square is wrong?\n"),
+                Piece.Empty => throw new Exception($"cannot obtain bitboard for an empty piece on move {moveHistory.Peek()}.\nBoard:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\nPerhaps your start square is wrong?\n"),
 
                 _ => throw new Exception($"cannot set bitboard for unaccounted enum \"{pieceEnum}\".") // raised errors if not in place
             };
@@ -664,19 +660,6 @@ namespace Chess
             // Otherwise, increase the halfmove clock
             else halfMoveClock++;
 
-            // Remove it from the zobrist hash
-            /*
-            if (moveHistory.TryPeek(out Move previousMove))
-            {
-                ZobristKey ^= Zobrist.HashPieceAndSquare(
-                    previousMove.type == MoveType.Promotion
-                        ? Piece.BlackPawn - SideToMove
-                        : Mailbox[previousMove.dst],
-                    previousMove.dst
-                );
-            }
-            */
-
             // Add the newly moved piece to the zobrist hash
             ZobristKey ^= Zobrist.HashPieceAndSquare(pieceToMove, move.src);
             ZobristKey ^= Zobrist.HashPieceAndSquare(pieceToMove, move.dst);
@@ -826,10 +809,10 @@ namespace Chess
                     else if (previousMove.dst == Squares.G1) endRookSquare = Squares.H1;
                     
                     // Black castling squares 
-                    else if (previousMove.dst == Squares.G1) endRookSquare = Squares.H1;
-                    else if (previousMove.dst == Squares.G1) endRookSquare = Squares.H1;
+                    else if (previousMove.dst == Squares.C8) endRookSquare = Squares.G8;
+                    else if (previousMove.dst == Squares.G8) endRookSquare = Squares.H8;
 
-                    else throw new Exception("invalid rook position");
+                    else throw new Exception($"invalid rook square \"{previousMove.dst}\" for castling.");
                     
                     Piece rookEnum = Piece.WhiteRook + SideToMove;
 
@@ -899,6 +882,8 @@ namespace Chess
 
         public List<Move> GenerateLegalMoves()
         {
+            if (IsDraw) throw new Exception($"looks like the game is already a draw.\n\nIf you want to avoid this error, use the IsDraw property to check whether or not the current position is a draw.\n\n");
+
             List<Move> moves = [];
 
             // If there are two checkers, only generate king moves
@@ -975,7 +960,7 @@ namespace Chess
                 moveListToAddTo: moves
             );
 
-            if (checkers.BitCount == 0) // not in check
+            if (!InCheck)
             {
                 Moves.GenerateCastlingMoves(
                     sideToMove: ColourToMove,

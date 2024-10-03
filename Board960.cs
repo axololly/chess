@@ -9,7 +9,7 @@ using Chess;
 
 namespace Chess960
 {
-    public class Board960
+    public struct Board960
     {
         public Piece[] Mailbox;
         public PieceSet White;
@@ -39,6 +39,9 @@ namespace Chess960
 
         public ulong ZobristKey { get; set; }
         public Stack<ulong> PastZobristHashes { get; set; }
+
+        public bool InCheck { get { return checkers.BitCount > 0; } }
+        public bool IsDraw { get { return Violated50MoveRule() || ViolatedRepetitionRule(); } }
 
         public Board960(string FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
         {
@@ -269,13 +272,6 @@ namespace Chess960
 
         public Bitboard GetBitboardFromEnum(Piece pieceEnum)
         {
-            Move getLastMovePlayed()
-            {
-                var T = moveHistory.Pop();
-                moveHistory.Push(T);
-                return T;
-            }
-
             return pieceEnum switch
             {
                 Piece.BlackBishop =>  Black.Bishops,
@@ -292,7 +288,7 @@ namespace Chess960
                 Piece.WhiteRook   =>  White.Rooks,
                 Piece.WhiteKing   =>  White.King,
 
-                Piece.Empty => throw new Exception($"cannot obtain bitboard for an empty piece on move {getLastMovePlayed()}.\nBoard:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\nPerhaps your start square is wrong?\n"),
+                Piece.Empty => throw new Exception($"cannot obtain bitboard for an empty piece on move {moveHistory.Peek()}.\nBoard:\n{this}\n\nMove history: [{string.Join(", ", moveHistory.Reverse())}]\n\nPerhaps your start square is wrong?\n"),
 
                 _ => throw new Exception($"cannot set bitboard for unaccounted enum \"{pieceEnum}\".") // raised errors if not in place
             };
@@ -324,10 +320,7 @@ namespace Chess960
 
         public void MakeMove(Move move)
         {
-            if (ViolatedRepetitionRule() || Violated50MoveRule())
-            {
-                throw new Exception($"cannot play move {move}: violated repetition rule. Game is already a draw.");
-            }
+            if (IsDraw) throw new Exception($"cannot play move {move}: violated repetition rule. Game is already a draw.");
 
             // Archive move
             moveHistory.Push(move);
@@ -587,9 +580,6 @@ namespace Chess960
             // was captured this move.
             ZobristKey ^= Zobrist.HashPieceAndSquare(pieceCaptured, move.dst);
 
-            // Remove the hash for the previous player
-            // ZobristKey ^= Zobrist.HashColor((Colour)(SideToMove ^ 1));
-
             // Add the hash for the current player
             ZobristKey ^= Zobrist.HashColor(ColourToMove);
 
@@ -780,6 +770,8 @@ namespace Chess960
 
         public List<Move> GenerateLegalMoves()
         {
+            if (IsDraw) throw new Exception($"looks like the game is already a draw.\n\nIf you want to avoid this error, use the IsDraw property to check whether or not the current position is a draw.\n\n");
+
             List<Move> moves = [];
 
             // If there are two checkers, only generate king moves

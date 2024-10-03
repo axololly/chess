@@ -57,7 +57,7 @@ namespace Chess.Utilities
 
             if (optionalBoard != null)
             {
-                boardsToPrint.Add(optionalBoard.ToString().Split('\n'));
+                boardsToPrint.Add((optionalBoard.ToString() ?? "").Split('\n'));
                 
                 if (labels != null)
                 {
@@ -120,12 +120,9 @@ namespace Chess.Utilities
 
             if (optionalBoard != null)
             {
-                boardsToPrint.Add(optionalBoard.ToString().Split('\n'));
+                boardsToPrint.Add((optionalBoard.ToString() ?? "").Split('\n'));
                 
-                if (labels != null)
-                {
-                    labels.Insert(0, "Board");
-                }
+                labels?.Insert(0, "Board");
             }
             
             string finalResult = "";
