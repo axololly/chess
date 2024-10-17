@@ -1,4 +1,4 @@
-using Types.Bitboards;
+using Chess.Types.Bitboards;
 using Chess.Bitmasks;
 using Chess.Utilities;
 using Chess960;
@@ -6,7 +6,7 @@ using Chess960;
 namespace Chess.Castling
 {
     /*********************************************
-       Everything below is for standard castling.
+      Everything below is for standard castling.
     *********************************************/
 
     public struct CastlingRights
@@ -58,6 +58,8 @@ namespace Chess.Castling
 
         public override string ToString()
         {
+            if (castlingBits == 0) return "-";
+            
             string rights = "qkQK";
             string result = "";
 
@@ -111,10 +113,10 @@ namespace Chess.Castling
     }
 
     /***************************************
-       Everything below is for Castling960.
+      Everything below is for Castling960.
        
-       For Chess960, it still uses the same
-       CastlingRights struct as normal.
+      For Chess960, it still uses the same
+      CastlingRights struct as normal.
     ****************************************/
 
     enum CastleType

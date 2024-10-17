@@ -1,6 +1,6 @@
 using Chess.Magics;
 using Chess.Tables;
-using Types.Bitboards;
+using Chess.Types.Bitboards;
 
 namespace Chess.Bitmasks
 {

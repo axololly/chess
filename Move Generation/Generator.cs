@@ -1,15 +1,12 @@
-using Types.Bitboards;
-
-using Chess.Utilities;
-using Chess.Castling;
 using Chess.Bitmasks;
+using Chess.Castling;
 using Chess.Tables;
-
+using Chess.Types.Bitboards;
+using Chess.Types.Squares;
+using Chess.Utilities;
 using Chess960;
-
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
-using Types.Squares;
 
 namespace Chess.MoveGen
 {
@@ -32,25 +29,17 @@ namespace Chess.MoveGen
         Queen
     }
 
-    public struct Move // TODO: find out what needs Move to be partial
+    public struct Move(
+        int src,
+        int dst,
+        MoveType type = MoveType.Normal,
+        PromoPiece promoPiece = PromoPiece.None
+    )
     {
-        public Square src; // Where the move starts
-        public Square dst; // Where the move ends
-        public MoveType type = MoveType.Normal; // Type of move
-        public PromoPiece promoPiece = PromoPiece.None;
-
-        public Move(
-            int src,
-            int dst,
-            MoveType type = MoveType.Normal,
-            PromoPiece promoPiece = PromoPiece.None
-        )
-        {
-            this.src = src;
-            this.dst = dst;
-            this.type = type;
-            this.promoPiece = promoPiece;
-        }
+        public Square src = src; // Where the move starts
+        public Square dst = dst; // Where the move ends
+        public MoveType type = type; // Type of move
+        public PromoPiece promoPiece = promoPiece;
 
         public static Move FromString(string moveString, MoveType type = MoveType.Normal, PromoPiece promoPiece = PromoPiece.None)
         {
@@ -146,8 +135,6 @@ namespace Chess.MoveGen
 
     public struct Moves
     {
-        private static MovementTables mt = new();
-
         public static void GenerateMovesFromSameSquare(Bitboard moveBitmask, int startSquare, List<Move> moveListToAddTo)
         {
             while (moveBitmask)

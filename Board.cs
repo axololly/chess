@@ -2,9 +2,9 @@ using Chess.Utilities;
 using Chess.MoveGen;
 using Chess.Bitmasks;
 using Chess.Castling;
-using Types.Bitboards;
-using Types.Squares;
-using Types.Zobrist;
+using Chess.Types.Bitboards;
+using Chess.Types.Squares;
+using Chess.Types.Zobrist;
 
 namespace Chess
 {
@@ -23,7 +23,7 @@ namespace Chess
 
         public Square KingSquare { get {
             if (!King) throw new Exception($"{colour} king bitboard is not present.");
-            if (King.BitCount > 2) throw new Exception($"{colour} has multiple kings on the board.");
+            if (King.BitCount() > 2) throw new Exception($"{colour} has multiple kings on the board.");
             
             return King.ReadLSB();
         } }
@@ -138,13 +138,13 @@ namespace Chess
         public ulong ZobristKey { get; set; }
         public Stack<ulong> PastZobristHashes { get; set; }
 
-        public bool InCheck { get { return checkers.BitCount > 0; } }
-        public bool IsDraw { get { return Violated50MoveRule() || ViolatedRepetitionRule(); } }
+        public bool InCheck { get { return checkers.BitCount() > 0; } }
+        public bool IsDraw { get { return Violated50MoveRule() || ViolatedInsufficientMaterial() || ViolatedRepetitionRule(); } }
+        public bool IsCheckmate { get { return GenerateLegalMoves().Count == 0 && checkers.BitCount() == 1; } }
+        public bool IsStalemate { get { return GenerateLegalMoves().Count == 0 && checkers.BitCount() == 0; } }
 
-        public Board(string? FEN)
+        private void FromFEN(string FEN)
         {
-            FEN ??= "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
             // Create piece sets for each side
             White = new(Colour.White);
             Black = new(Colour.Black);
@@ -351,7 +351,28 @@ namespace Chess
                 throw new Exception($"cannot construct position: violated 50-move rule. Game is already a draw.");
             }
         }
+        
+        public Board()
+        {
+            // We set these to remove warnings in console.
+            // They get overrided anyway.
+            Mailbox = new Piece[64];
+            PastZobristHashes = [];
 
+            // Create a board from the standard FEN.
+            FromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        }
+
+        public Board(string FEN)
+        {
+            // We set these to remove warnings in console.
+            // They get overrided anyway.
+            Mailbox = new Piece[64];
+            PastZobristHashes = [];
+
+            // Create a board from the given FEN.
+            FromFEN(FEN);
+        }
 
         public Bitboard GetBitboardFromEnum(Piece pieceEnum)
         {
@@ -403,9 +424,9 @@ namespace Chess
 
         public void MakeMove(Move move)
         {
-            if (ViolatedRepetitionRule() || Violated50MoveRule())
+            if (IsDraw)
             {
-                throw new Exception($"cannot play move {move}: violated repetition rule. Game is already a draw.");
+                throw new Exception($"cannot play move {move}: game is already a draw.");
             }
 
             // Archive move
@@ -493,7 +514,7 @@ namespace Chess
                     Mailbox[move.dst] = pieceToMove;
 
                     // Clear en-passant square
-                    epSquare = 0;
+                    epSquare = Squares.None;
 
                     break;
 
@@ -527,7 +548,7 @@ namespace Chess
                     Mailbox[inFrontOfEPsquare] = Piece.Empty;
 
                     // Clear EP square (already been used)
-                    epSquare = 0;
+                    epSquare = Squares.None;
 
                     break;
                 
@@ -554,7 +575,7 @@ namespace Chess
                 
                 case MoveType.Castling:
                     // Clear en-passant square
-                    epSquare = 0;
+                    epSquare = Squares.None;
                     
                     // Reset castling rights depending on side
                     castlingRights.DisableBoth((Colour)(SideToMove ^ 1));
@@ -602,7 +623,7 @@ namespace Chess
                 
                 case MoveType.Promotion:
                     // Clear EP square
-                    epSquare = 0;
+                    epSquare = Squares.None;
 
                     // Move piece on array
                     Mailbox[move.src] = Piece.Empty;
@@ -885,12 +906,12 @@ namespace Chess
 
         public List<Move> GenerateLegalMoves()
         {
-            if (IsDraw) throw new Exception($"looks like the game is already a draw.\n\nIf you want to avoid this error, use the IsDraw property to check whether or not the current position is a draw.\n\n");
+            if (IsDraw) throw new Exception($"looks like the game is already a draw.\n\nIf you want to avoid this error, use the IsDraw property to check whether or not the current position is a draw.\n");
 
             List<Move> moves = [];
 
             // If there are two checkers, only generate king moves
-            if (checkers.BitCount == 2)
+            if (checkers.BitCount() == 2)
             {
                 Moves.GenerateKingMoves(
                     friendlyPieces: PlayerToMove,
@@ -1025,7 +1046,7 @@ namespace Chess
 
                 Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount;
+                int numBlockers = blockers.BitCount();
 
                 if (numBlockers == 0)
                 {
@@ -1044,7 +1065,7 @@ namespace Chess
 
                 Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount;
+                int numBlockers = blockers.BitCount();
 
                 if (numBlockers == 0)
                 {
@@ -1120,6 +1141,26 @@ namespace Chess
         }
 
         public bool Violated50MoveRule() => halfMoveClock > 100;
+
+        public bool ViolatedInsufficientMaterial()
+        {
+            // If there are any queens, rooks or pawns on the board,
+            // there is enough material on the board to checkmate
+            // the opponent.
+            if (
+                White.Queens | Black.Queens
+              | White.Rooks  | Black.Rooks
+              | White.Pawns  | Black.Pawns
+            )
+                return false;
+            
+            // Find out how many bishops and knights there are on the board
+            int knights = (White.Knights | Black.Knights).BitCount();
+            int bishops = (White.Bishops | Black.Bishops).BitCount();
+            
+            // I dunno what this does, besides what's written.
+            return (knights == 0 && bishops < 2) || (bishops == 0 && knights <= 2);
+        }
 
         private string GetFEN()
         {

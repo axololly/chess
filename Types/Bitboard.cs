@@ -1,8 +1,8 @@
 using System.Numerics;
 using Chess.Utilities;
-using Types.Squares;
+using Chess.Types.Squares;
 
-namespace Types.Bitboards
+namespace Chess.Types.Bitboards
 {
     public enum Direction
     {
@@ -21,7 +21,7 @@ namespace Types.Bitboards
         private ulong bitboard;
 
         public readonly bool IsEmpty { get { return bitboard == 0; } }
-        public readonly int BitCount { get { return BitOperations.PopCount(bitboard); } }
+        public readonly int BitCount() => BitOperations.PopCount(bitboard);
 
         public static Bitboard Filled { get { return ulong.MaxValue; } }
 
