@@ -1,11 +1,11 @@
+using Chess;
 using Chess.Utilities;
 using Chess.MoveGen;
 using Chess.Bitmasks;
 using Chess.Castling;
-using Types.Bitboards;
-using Types.Squares;
-using Types.Zobrist;
-using Chess;
+using Chess.Types.Bitboards;
+using Chess.Types.Squares;
+using Chess.Types.Zobrist;
 
 namespace Chess960
 {
@@ -40,13 +40,13 @@ namespace Chess960
         public ulong ZobristKey { get; set; }
         public Stack<ulong> PastZobristHashes { get; set; }
 
-        public bool InCheck { get { return checkers.BitCount > 0; } }
+        public bool InCheck { get { return checkers.BitCount() > 0; } }
         public bool IsDraw { get { return Violated50MoveRule() || ViolatedRepetitionRule(); } }
+        public bool IsCheckmate { get { return GenerateLegalMoves().Count == 0 && checkers.BitCount() == 1; } }
+        public bool IsStalemate { get { return GenerateLegalMoves().Count == 0 && checkers.BitCount() == 0; } }
 
-        public Board960(string? FEN)
-        {
-            FEN ??= "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-            
+        private void FromFEN(string FEN)
+        {            
             // Create piece sets for each side
             White = new(Colour.White);
             Black = new(Colour.Black);
@@ -272,6 +272,29 @@ namespace Chess960
         }
 
 
+        public Board960()
+        {
+            // We set these to remove warnings in console.
+            // They get overrided anyway.
+            Mailbox = new Piece[64];
+            PastZobristHashes = [];
+
+            // Create a board from the standard FEN.
+            FromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w HAha - 0 1");
+        }
+        
+        public Board960(string FEN)
+        {
+            // We set these to remove warnings in console.
+            // They get overrided anyway.
+            Mailbox = new Piece[64];
+            PastZobristHashes = [];
+
+            // Create a board from the given FEN.
+            FromFEN(FEN);
+        }
+
+
         public Bitboard GetBitboardFromEnum(Piece pieceEnum)
         {
             return pieceEnum switch
@@ -409,7 +432,7 @@ namespace Chess960
                     Mailbox[move.dst] = pieceToMove;
 
                     // Clear en-passant square
-                    epSquare = 0;
+                    epSquare = Squares.None;
 
                     break;
 
@@ -443,7 +466,7 @@ namespace Chess960
                     Mailbox[inFrontOfEPsquare] = Piece.Empty;
 
                     // Clear EP square (already been used)
-                    epSquare = 0;
+                    epSquare = Squares.None;
 
                     break;
                 
@@ -473,7 +496,7 @@ namespace Chess960
                     ZobristKey ^= Zobrist.HashCastlingRights(castlingRights);
 
                     // Clear en-passant square
-                    epSquare = 0;
+                    epSquare = Squares.None;
 
                     // Get the king moving
                     pieceToMove = Piece.BlackKing - SideToMove;
@@ -513,7 +536,7 @@ namespace Chess960
                 
                 case MoveType.Promotion:
                     // Clear EP square
-                    epSquare = 0;
+                    epSquare = Squares.None;
 
                     // Move piece on array
                     Mailbox[move.src] = Piece.Empty;
@@ -777,7 +800,7 @@ namespace Chess960
             List<Move> moves = [];
 
             // If there are two checkers, only generate king moves
-            if (checkers.BitCount == 2)
+            if (checkers.BitCount() == 2)
             {
                 Moves.GenerateKingMoves(
                     friendlyPieces: PlayerToMove,
@@ -850,7 +873,7 @@ namespace Chess960
                 moveListToAddTo: moves
             );
 
-            if (checkers.BitCount == 0) // not in check
+            if (checkers.BitCount() == 0) // not in check
             {
                 Moves.GenerateCastlingMoves(
                     sideToMove: ColourToMove,
@@ -912,7 +935,7 @@ namespace Chess960
 
                 Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount;
+                int numBlockers = blockers.BitCount();
 
                 if (numBlockers == 0)
                 {
@@ -931,7 +954,7 @@ namespace Chess960
 
                 Bitboard checkray = Bitmask.RayBetween(us.KingSquare, sq);
                 Bitboard blockers = checkray & us.Mask;
-                int numBlockers = blockers.BitCount;
+                int numBlockers = blockers.BitCount();
 
                 if (numBlockers == 0)
                 {

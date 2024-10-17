@@ -1,14 +1,11 @@
 // Thanks to Ciekcie's Stormphrax for this section
 // on Zobrist hashing. This was a big help.
 
-using Chess;
-using Chess960;
 using Chess.Castling;
 using Chess.Utilities;
-using Types.Bitboards;
-using Types.Squares;
+using Chess.Types.Squares;
 
-namespace Types.Zobrist
+namespace Chess.Types.Zobrist
 {
     struct XorRandom
     {

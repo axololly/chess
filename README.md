@@ -1,45 +1,127 @@
-# Chess Move Generator v1.1.6
+# Chess Move Generator v1.2.0
 
-If you can't beat em, join em. And that's what I did when I stayed inside for the last month every evening developing this chess move generator.
+Holy hell, it's been a while. It's been probably another month and I _still_ don't have documentation for everything. That's what procrastination does to you. :trollface:
 
-_If I ever hate myself enough to make a Python version, I'll link it here._
+## Statistics
 
-Documentation will probably be coming soon, although I'm not sure whether I should include docstrings, manually written documentation in markdown, or both. I'll decide at some point. Right now, I have cooler stuff to be making.
+Here are the current file statistics for this project:
 
-## Using my project
+|File name|Lines|Characters|File size|
+|:-|:-:|:-:|:-:|
+|`Board.cs`|1,230|47,912|47.99 KB|
+|`Board960.cs`|1,099|43,664|43.71 KB|
+|`Bitmasks.cs`|86|2,685|2.71 KB|
+|`Bitboard.cs`|119|3,818|3.84 KB|
+|`Castling.cs`|212|7,962|7.98 KB|
+|`Generator.cs`|549|19,141|19.23 KB|
+|`MagicBitboards.cs`|318|17,175|17.08 KB|
+|`PGN.cs`|281|12,182|12.17 KB|
+|`Perft.cs`|364|11,865|11.94 KB|
+|`Square.cs`|59|2,248|2.25 KB|
+|`Tables.cs`|59|1,857|1.87 KB|
+|`Utilities.cs`|222|7,166|7.21 KB|
+|`Zobrist.cs`|80|2,113|2.14 KB|
+|Total|4,678|179,788|180.13 KB|
 
-Quick heads up: I used `.NET 8.0` for this.
+I'm incredibly proud of how much I've written, how much I've learnt and how far I've come. It feels amazing to write this.
 
-If you want to use this library in your own code, you can find it on NuGet under the name `Axololly.Chess.MoveGenerator`. A new version was published because I'm a little bit dumb and I missed a few things.
+## PGN Support
 
-I'll probably add PGN inputting and outputting at some point. Don't hold me accountable for this.
+I added PGN support now, which you can find in `PGN.cs`, and use under the namespace `Chess.PGN`. Now you can read games in PGN format. Do note that some PGNs are raising draw errors, mostly under the three-fold repetition rule. I became aware of this issue after running my code through a set of 7,000 PGNs I found [here](https://www.pgnmentor.com/files.html). For my experiments, I took games from [Viswanatan Anand](https://en.wikipedia.org/wiki/Viswanathan_Anand) and [Alireza Firouzja](https://en.wikipedia.org/wiki/Alireza_Firouzja), then ran them through a custom-made interpreter.
 
-### Example Code
+### Results
 
+For Anand's game set, I got these results on an i5-4210U:
+```yml
+Found 4162 PGNs in 110 milliseconds.
+
+Translated 4162 PGNs in 11032 milliseconds.
+Successfully translated 4108 PGNs and failed translating 54 PGNs.
+```
+
+This results in 377 PGNs translated every second, or one PGN every 0.0027s.
+
+All the fails were draw-related, which has already been explained above.
+
+***
+
+For Firouzja's game set, I got these results on the same CPU:
+```yml
+Found 3713 PGNs in 60 milliseconds.
+
+Translated 3713 PGNs in 6589 milliseconds.
+Successfully translated 3664 PGNs and failed translating 49 PGNs.
+```
+
+This results in 413 PGNs translated every second, or one PGN every 0.0024 seconds.
+
+Fails are for the same reasons.
+
+### Inner Workings
+
+It works using regex to identify the start and end of a PGN's body - it starts with `1.` and ends with either `0-1`, `1-0`, or `1/2-1/2`. We can easily compile these into regex with:
+```cs
+// For start
+@"1\.";
+
+// For end
+@"  ((0-1)|(1-0)|(1/2-1/2))";
+```
+
+However, note that this does blindly extract moves, so if you gave it:
+```yml
+1. e4 e5 1. Nc6
+```
+
+It would interpret this as:
+```yml
+["e4", "e5", "Nc6"]
+```
+
+Then proceed to translate the moves to long algebraic notation, lookup them in the generated legal moves based on criteria extracted from the move, for example, like:
+
+- an "N" means it's a knight move, and this can be either a `Piece.WhiteKnight` or `Piece.BlackKnight`, which we check the `.SideToMove` property for.
+
+- if there's no piece character, it's a pawn move. For which side? We use the `.SideToMove` property for this again.
+
+- if rank differentiation is provided, search for a move where the start square's rank originates on that specified rank, written as the "target rank"
+
+## Usage
+
+> :memo::wrench: **Note:** To use this, make sure you have `.NET 8.0`.
+
+To start, include the `Chess` namespace. Then you can create a `Board` instance and go from there.
+
+For extra information, here's a table of all the functions you'd be using, and what they do:
+
+|Function|Explanation|
+|:-:|:-|
+|`.MakeMove()`|Makes a move on the board.<br>_Note that the legality of the move is not verified._<br><br>To get the `Move` struct, use the `Chess.MoveGen` namespace.|
+|`.UndoMove()`|Undoes a move on the board.<br><br>This will raise an error if no moves were previously played on the board.|
+|`.GenerateLegalMoves()`|Returns a list of `Move` structs representing all the legal moves that can be played on the board.<br><br>If the list is empty, the board state is either checkmate or stalemate, both of which can be found out with the `.IsStalemate` and `.IsCheckmate` properties.|
+|`.IsDraw`|Returns a boolean representing whether or not the current board state is a draw.<br>_Note that this generalises between the 50-move rule, three-fold repetition and insufficient material._|
+|`.IsStalemate`|Returns a boolean representing whether or not the current board state is stalemate.|
+|`.IsCheckmate`|Returns a boolean representing whether or not the current board state is checkmate.|
+|`.InCheck`|Returns a boolean representing whether or not the current player's king is in check or not.|
+
+### Example
 ```cs
 using Chess;
-using Chess.MoveGen; // Used for the Move struct
 
 class Program
 {
     static void Main()
     {
-        // Create an empty board.
-        // Use a null value because structs will default to null
-        // if you use the parameterless constructor. 
-        Board board = new(null);
+        Board board = new();
 
-        // Get a list of the next moves
-        List<Move> nextMoves = board.GenerateLegalMoves();
-
-        // Print out the board and print out the next possible moves.
         Console.WriteLine($"Board:\n{board}\n");
-        Console.WriteLine($"Next moves: [{string.Join(", ", nextMoves)}]");
+        Console.WriteLine($"Next moves: [{string.Join(", ", board.GenerateLegalMoves())}]");
     }
 }
 ```
 
 ### Result
+
 ```yml
 Board:
 r n b q k b n r
@@ -54,131 +136,19 @@ R N B Q K B N R
 Next moves: [b1a3, b1c3, g1f3, g1h3, a2a3, b2b3, c2c3, d2d3, e2e3, f2f3, g2g3, h2h3, a2a4, b2b4, c2c4, d2d4, e2e4, f2f4, g2g4, h2h4]
 ```
 
-## Fixes
+## Perft
 
-So, for my 6th pull request, I believe it is, it turns out I messed a few things up, mostly to do with outside move generation:
-
-### Three-fold Repetition
-
-When checking for violation of the three-fold repetition rule, I was counting repeated **moves** instead of repeated **positions**. To fix this, I added in a PCG algorithm called `XorRandom` that with a given seed, can generate consistently random numbers used for hashing a position.
-
-For counting them, I took inspiration from Python's `collections.Counter` class and constructed this:
-```cs
-Dictionary<ulong, int> pastHashes = [];
-
-foreach (ulong pastHash in PastZobristHashes)
-{
-    if (!pastHashes.TryAdd(pastHash, 1))
-    {
-        if (pastHashes[pastHash]++ == 2) return true;
-    }
-}
-```
-
-There was also a counting issue where I was checking for four-fold repetition in this snippet below:
-```cs
-if (pastHashes[pastHash]++ == 3)
-```
-
-This is because the `++` operator increments _after_ evaluation, so it _would_ have been 3, but only after this `if` statement, which wouldn't have worked.
-
-Thankfully, that's all fixed now.
-
-If you're curious, the hash of a position can be retrieved in the `ZobristKey` property. This is for both of the Chess and Chess960 board classes.
-
-### 50-Move Rule
-
-When checking for violation of the 50-move rule, I handled the clock wrong in two ways:
-
-1. Incrementing after each side has made a move instead of when both sides have made a move
-2. Resetting the clock after a pawn **promotes** (supposed to be when a pawn moves)
-
-Fixing these issues was fairly easy: for the first one, I can just treat it as a 100-move clock and then in the FEN strings, divide it by 2 and discard any stray halves, and for the second one, I just had to check that the piece moving was a white or black pawn.
-
-Another issue arose where after a double-push move like `1. e4`, it was erroring because it couldn't find the rank the en-passant pawn was on. Either way, that's solved now.
-
-Another error I found was doing `1UL << someSquare.Bitboard`, which, under the hood, is literally `1UL << (1UL << someSquare)`, creating some sort of super bitboard. That's all fixed now, and I don't have to deal with that anymore.
-
-### Structs
-
-Another bunch of errors came when making the board into a struct. Turns out all structs spawn with an empty parameterless constructor, so instead of making a board off a default value, it was literally just making a `null` board value, raising a ton of errors when trying to operate on that board. This is fixed now. :thumbsup:
-
-All of these fixes will be present in version `v1.1.6` of the NuGet package.
-
-## Statistics
-
-Quick section about the statistics of this project:
-
-### Source Code
-
-|File name|Lines|Characters|File size|
-|:-|:-:|:-:|:-:|
-|`Board.cs`|1,189|46,245|46.32 KB|       
-|`Board960.cs`|1,076|42,772|42.82 KB|    
-|`Bitmasks.cs`|86|2,679|2.7 KB|
-|`Bitboard.cs`|119|3,820|3.85 KB|        
-|`Castling.cs`|210|7,900|7.92 KB|        
-|`Generator.cs`|562|19,424|19.52 KB|     
-|`MagicBitboards.cs`|318|17,169|17.08 KB|
-|`Perft.cs`|364|11,865|11.94 KB|
-|`Square.cs`|132|5,244|5.25 KB|
-|`Tables.cs`|59|1,851|1.86 KB|
-|`Utilities.cs`|222|7,160|7.21 KB|       
-|`Zobrist.cs`|83|2,153|2.18 KB|
-
-### Note about Chess960
-
-Chess960 is the exact same, just change the `using` directory to be `Chess960` and use the `Board960` class instead of the `Board` class. The methods for controlling the state of the board are identical.
-
-## Move Generation Order
-
-1. Rooks
-    - Using magic bitboards
-    - Includes the rook part of queen moves
-
-2. Bishops
-    - Using magic bitboards
-    - includes the diagonal part of queen moves
-
-3. Knights
-
-4. Pawns
-    - Single pushes (with and without promotion)
-    - Double pushes
-    - Left attacks (with and without promotion)
-    - Right attacks (with and without promotion)
-    - En-passant (thanks to [`@Disservin`](https://github.com/Disservin) for [`Smallbrain`](https://github.com/Disservin/Smallbrain) and its EP code)
-
-5. Normal King Moves
-    - Evading checks
-    - Not stepping on squares attacked by the opponent
-    - Not capturing pieces protected by the opponent
-
-6. Castling
-    - Not supported if in check
-    - Not supported if pieces are blocking the path
-    - Not supported if pieces are attacking the path
-    - Not supported if already castled
-
-All of how I programmed my move generation can be found in the conveniently named folder in this repository called [`Move Generation`](https://github.com/axololly/chess/tree/main/Move%20Generation).
-
-At some point, I'll write up a bunch of documentation, well, documenting everything about this project in the [`Documentation`](https://github.com/axololly/chess/tree/main/Documentation) folder, which, as of writing this, is about two and a half, maybe three weeks behind schedule. Over the next few days, I'll update it with everything it's missing.
-
-## Perft Data
-
-I translated [`TheRealGioviok's`](https://github.com/TheRealGioviok) raw text file of [example FEN positions](https://github.com/TheRealGioviok/Perseus-Engine/blob/main/perft.txt) and their associated depths, and converted it into a JSON file 74,272 lines long. Substantially longer, but easier to manage.
-
-Each document is structured like this:
+I translated [this](https://github.com/TheRealGioviok/Perseus-Engine/blob/main/perft.txt) file into a more readable JSON structure where each document looks like this:
 ```json
 {
-    "FEN": ...,
+    "FEN": "...",
     "Depths": {
-        "1": ...,
-        "2": ...,
-        "3": ...,
-        "4": ...,
-        "5": ...,
-        "6": ...
+        "1": "...",
+        "2": "...",
+        "3": "...",
+        "4": "...",
+        "5": "...",
+        "6": "..."
     }
 }
 ```
@@ -192,10 +162,6 @@ If you want to perft test my own project, you can do it with the `Perft` and `Pe
 |Move-by-Move|`.MoveByMovePerftTest()`|Prints the move and number of counted nodes, returning the total at the end.|
 |Global|`.GlobalPerftTest()`|Prints the number of counted nodes until a given depth is reached.|
 |Output|`.OutputPerftTest()`|Redirects the console output into a file for further review.|
-
-All of these work with Chess960 boards - you just need to use `Perft960` instead of `Perft`.
-
-There's also a `.Kiwipete` property that holds the FEN string for the Kiwipete versions of Chess and Chess960.
 
 ## Thanks
 

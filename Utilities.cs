@@ -1,4 +1,4 @@
-using Types.Bitboards;
+using Chess.Types.Bitboards;
 using Chess960;
 
 namespace Chess.Utilities
