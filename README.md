@@ -98,10 +98,8 @@ For extra information, here's a table of all the functions you'd be using, and w
 |:-:|:-|
 |`.MakeMove()`|Makes a move on the board.<br>_Note that the legality of the move is not verified._<br><br>To get the `Move` struct, use the `Chess.MoveGen` namespace.|
 |`.UndoMove()`|Undoes a move on the board.<br><br>This will raise an error if no moves were previously played on the board.|
-|`.GenerateLegalMoves()`|Returns a list of `Move` structs representing all the legal moves that can be played on the board.<br><br>If the list is empty, the board state is either checkmate or stalemate, both of which can be found out with the `.IsStalemate` and `.IsCheckmate` properties.|
-|`.IsDraw`|Returns a boolean representing whether or not the current board state is a draw.<br>_Note that this generalises between the 50-move rule, three-fold repetition and insufficient material._|
-|`.IsStalemate`|Returns a boolean representing whether or not the current board state is stalemate.|
-|`.IsCheckmate`|Returns a boolean representing whether or not the current board state is checkmate.|
+|`.GenerateLegalMoves()`|Returns a list of `Move` structs representing all the legal moves that can be played on the board.<br><br>If the list is empty, the board state is either checkmate or stalemate, both of which can be found out with the `.InCheck` property, where if true, the state is checkmate, and if false, it's stalemate.|
+|`.IsDraw`|Returns a boolean representing whether or not the current board state is a draw.<br><br_Note that this generalises between the 50-move rule, three-fold repetition and insufficient material._|
 |`.InCheck`|Returns a boolean representing whether or not the current player's king is in check or not.|
 
 ### Example

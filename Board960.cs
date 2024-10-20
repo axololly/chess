@@ -793,7 +793,7 @@ namespace Chess960
             UpdatePinsAndCheckers();
         }
 
-        public List<Move> GenerateLegalMoves()
+        public List<Move> GenerateLegalMoves(bool onlyCaptures = false)
         {
             if (IsDraw) throw new Exception($"looks like the game is already a draw.\n\nIf you want to avoid this error, use the IsDraw property to check whether or not the current position is a draw.\n\n");
 
@@ -806,7 +806,8 @@ namespace Chess960
                     friendlyPieces: PlayerToMove,
                     opponentPieces: OpponentToMove,
                     square: PlayerToMove.KingSquare,
-                    moveListToAddTo: moves
+                    moveListToAddTo: moves,
+                    onlyCaptures: onlyCaptures
                 );
                 
                 return moves;
@@ -823,7 +824,8 @@ namespace Chess960
                     pinHV: pinHV,
                     pinD: pinD,
                     checkmask: checkmask,
-                    moveListToAddTo: moves
+                    moveListToAddTo: moves,
+                    onlyCaptures: onlyCaptures
                 );
             }
 
@@ -838,7 +840,8 @@ namespace Chess960
                     pinHV: pinHV,
                     pinD: pinD,
                     checkmask: checkmask,
-                    moveListToAddTo: moves
+                    moveListToAddTo: moves,
+                    onlyCaptures: onlyCaptures
                 );
             }
 
@@ -848,10 +851,12 @@ namespace Chess960
             {
                 Moves.GenerateKnightMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
+                    opponentOccupancy: OpponentToMove.Mask,
                     square: knights.PopLSB(),
                     moveListToAddTo: moves,
                     pinmask: pinD | pinHV,
-                    checkmask: checkmask
+                    checkmask: checkmask,
+                    onlyCaptures: onlyCaptures
                 );
             }
 
@@ -863,17 +868,19 @@ namespace Chess960
                 pinHV: pinHV,
                 pinD: pinD,
                 checkmask: checkmask,
-                side: ColourToMove
+                side: ColourToMove,
+                onlyCaptures: onlyCaptures
             );
 
             Moves.GenerateKingMoves(
                 friendlyPieces: PlayerToMove,
                 opponentPieces: OpponentToMove,
                 square: PlayerToMove.KingSquare,
-                moveListToAddTo: moves
+                moveListToAddTo: moves,
+                onlyCaptures: onlyCaptures
             );
 
-            if (checkers.BitCount() == 0) // not in check
+            if (!InCheck && !onlyCaptures) // not in check
             {
                 Moves.GenerateCastlingMoves(
                     sideToMove: ColourToMove,

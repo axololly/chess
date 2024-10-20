@@ -44,7 +44,6 @@ namespace Chess
 
 
             attacks |= Bitmask.ForKing(
-                enemyOrEmpty: Bitboard.Filled,
                 opponentAttacks: 0,
                 square: KingSquare
             );
@@ -140,8 +139,6 @@ namespace Chess
 
         public bool InCheck { get { return checkers.BitCount() > 0; } }
         public bool IsDraw { get { return Violated50MoveRule() || ViolatedInsufficientMaterial() || ViolatedRepetitionRule(); } }
-        public bool IsCheckmate { get { return GenerateLegalMoves().Count == 0 && checkers.BitCount() == 1; } }
-        public bool IsStalemate { get { return GenerateLegalMoves().Count == 0 && checkers.BitCount() == 0; } }
 
         private void FromFEN(string FEN)
         {
@@ -904,7 +901,7 @@ namespace Chess
             UpdatePinsAndCheckers();
         }
 
-        public List<Move> GenerateLegalMoves()
+        public List<Move> GenerateLegalMoves(bool onlyCaptures = false)
         {
             if (IsDraw) throw new Exception($"looks like the game is already a draw.\n\nIf you want to avoid this error, use the IsDraw property to check whether or not the current position is a draw.\n");
 
@@ -917,7 +914,8 @@ namespace Chess
                     friendlyPieces: PlayerToMove,
                     opponentPieces: OpponentToMove,
                     square: PlayerToMove.KingSquare,
-                    moveListToAddTo: moves
+                    moveListToAddTo: moves,
+                    onlyCaptures: onlyCaptures
                 );
                 
                 return moves;
@@ -934,7 +932,8 @@ namespace Chess
                     pinHV: pinHV,
                     pinD: pinD,
                     checkmask: checkmask,
-                    moveListToAddTo: moves
+                    moveListToAddTo: moves,
+                    onlyCaptures: onlyCaptures
                 );
             }
 
@@ -949,7 +948,8 @@ namespace Chess
                     pinHV: pinHV,
                     pinD: pinD,
                     checkmask: checkmask,
-                    moveListToAddTo: moves
+                    moveListToAddTo: moves,
+                    onlyCaptures: onlyCaptures
                 );
             }
 
@@ -959,10 +959,12 @@ namespace Chess
             {
                 Moves.GenerateKnightMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
+                    opponentOccupancy: OpponentToMove.Mask,
                     square: knights.PopLSB(),
                     moveListToAddTo: moves,
                     pinmask: pinD | pinHV,
-                    checkmask: checkmask
+                    checkmask: checkmask,
+                    onlyCaptures: onlyCaptures
                 );
             }
 
@@ -974,17 +976,19 @@ namespace Chess
                 pinHV: pinHV,
                 pinD: pinD,
                 checkmask: checkmask,
-                side: ColourToMove
+                side: ColourToMove,
+                onlyCaptures: onlyCaptures
             );
 
             Moves.GenerateKingMoves(
                 friendlyPieces: PlayerToMove,
                 opponentPieces: OpponentToMove,
                 square: PlayerToMove.KingSquare,
-                moveListToAddTo: moves
+                moveListToAddTo: moves,
+                onlyCaptures: onlyCaptures
             );
 
-            if (!InCheck)
+            if (!InCheck && !onlyCaptures)
             {
                 Moves.GenerateCastlingMoves(
                     sideToMove: ColourToMove,

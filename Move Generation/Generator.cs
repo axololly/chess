@@ -206,10 +206,16 @@ namespace Chess.MoveGen
             Bitboard pinHV,
             Bitboard checkmask,
             int square,
-            List<Move> moveListToAddTo
+            List<Move> moveListToAddTo,
+            bool onlyCaptures = false
         )
         {
-            Bitboard moveBitmask = Bitmask.ForRook(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
+            Bitboard moveBitmask = Bitmask.ForRook(friendlyOccupancy | opponentOccupancy, square);
+
+            // If generating only captures, only accept bits that collide with
+            // the opponent's bitboard. Otherwise, just accept bits that aren't
+            // colliding with our own (don't take our own pieces).
+            moveBitmask &= onlyCaptures ? opponentOccupancy : ~friendlyOccupancy;
 
             moveBitmask &= checkmask;
             
@@ -229,10 +235,16 @@ namespace Chess.MoveGen
             Bitboard pinHV,
             Bitboard checkmask,
             int square,
-            List<Move> moveListToAddTo
+            List<Move> moveListToAddTo,
+            bool onlyCaptures = false
         )
         {
-            Bitboard moveBitmask = Bitmask.ForBishop(friendlyOccupancy | opponentOccupancy, square) & ~friendlyOccupancy;
+            Bitboard moveBitmask = Bitmask.ForBishop(friendlyOccupancy | opponentOccupancy, square);
+
+            // If generating only captures, only accept bits that collide with
+            // the opponent's bitboard. Otherwise, just accept bits that aren't
+            // colliding with our own (don't take our own pieces).
+            moveBitmask &= onlyCaptures ? opponentOccupancy : ~friendlyOccupancy;
 
             moveBitmask &= checkmask;
             
@@ -249,7 +261,8 @@ namespace Chess.MoveGen
             PieceSet friendlyPieces,
             PieceSet opponentPieces,
             int square,
-            List<Move> moveListToAddTo
+            List<Move> moveListToAddTo,
+            bool onlyCaptures = false
         )
         {
             Bitboard boardMask = friendlyPieces.Mask | opponentPieces.Mask;
@@ -258,10 +271,14 @@ namespace Chess.MoveGen
             Bitboard opponentAttacks = opponentPieces.BaseAttackingBitmask(boardMask ^ friendlyPieces.King);
 
             Bitboard moveBitmask = Bitmask.ForKing(
-                enemyOrEmpty: ~friendlyPieces.Mask,
                 opponentAttacks: opponentAttacks,
                 square: square
             );
+
+            // If generating only captures, only accept bits that collide with
+            // the opponent's bitboard. Otherwise, just accept bits that aren't
+            // colliding with our own (don't take our own pieces).
+            moveBitmask &= onlyCaptures ? opponentPieces.Mask : ~friendlyPieces.Mask;
 
             GenerateMovesFromSameSquare(moveBitmask, square, moveListToAddTo);
         }
@@ -270,16 +287,27 @@ namespace Chess.MoveGen
 
         public static void GenerateKnightMoves(
             Bitboard friendlyOccupancy,
+            Bitboard opponentOccupancy,
             int square,
             Bitboard pinmask,
             Bitboard checkmask,
-            List<Move> moveListToAddTo
+            List<Move> moveListToAddTo,
+            bool onlyCaptures = false
         )
         {
-            if (pinmask & 1UL << square) return; // if knight is pinned, it can't move anywhere
+            // There's no need to differentiate pinmasks because
+            // if the knight is pinned, it can't move anywhere.
+            if (pinmask & 1UL << square) return;
+
+            Bitboard moveBitmask = Bitmask.ForKnight(friendlyOccupancy, square) & checkmask;
+
+            // If generating only captures, only accept bits that collide with
+            // the opponent's bitboard. Otherwise, just accept bits that aren't
+            // colliding with our own (don't take our own pieces).
+            moveBitmask &= onlyCaptures ? opponentOccupancy : ~friendlyOccupancy;
 
             GenerateMovesFromSameSquare(
-                Bitmask.ForKnight(friendlyOccupancy, square) & checkmask,
+                moveBitmask,
                 square,
                 moveListToAddTo
             );
@@ -294,7 +322,8 @@ namespace Chess.MoveGen
             Bitboard checkmask,
             Bitboard pinHV,
             Bitboard pinD,
-            List<Move> moveList
+            List<Move> moveList,
+            bool onlyCaptures = true
         )
         {
             PieceSet us, them;
@@ -345,26 +374,31 @@ namespace Chess.MoveGen
             Bitboard pinnedHVpawns = pawns & ~pinD  &  pinHV;
             Bitboard pinnedDpawns  = pawns & ~pinHV &  pinD;
 
-            // Pawns pinned diagonally can't move forward and pawns pinned
-            // orthogonally have to be restricted to only move on the pinmask.
-            Bitboard singlePushes = empty & (unpinnedPawns.Shift(up) | pinnedHVpawns.Shift(up) & pinHV);
+            // Only generate pushes unless we are generating captures, because
+            // a push can never be a capture.
+            if (!onlyCaptures)
+            {
+                // Pawns pinned diagonally can't move forward and pawns pinned
+                // orthogonally have to be restricted to only move on the pinmask.
+                Bitboard singlePushes = empty & (unpinnedPawns.Shift(up) | pinnedHVpawns.Shift(up) & pinHV);
 
-            // Only pawns (after being pushed) on the (relative) third rank
-            // would have gone from the (relative) second rank, so only shift
-            // those upwards and check if there are any spaces in the way.
-            //
-            // The third rank is also the en-passant rank, so we can reuse
-            // that here.
-            Bitboard doublePushes = empty & (singlePushes & doublePushRank).Shift(up);
+                // Only pawns (after being pushed) on the (relative) third rank
+                // would have gone from the (relative) second rank, so only shift
+                // those upwards and check if there are any spaces in the way.
+                //
+                // The third rank is also the en-passant rank, so we can reuse
+                // that here.
+                Bitboard doublePushes = empty & (singlePushes & doublePushRank).Shift(up);
 
-            // Add moves to move list - doing single pushes
-            // (Add to checkmask first so that double pushes
-            // can be used to block checks)
-            GenerateMovesWithOffset(checkmask & singlePushes & ~promotionRank, pawnShifts[1], moveList);
-            GenerateMovesWithOffset(checkmask & singlePushes &  promotionRank, pawnShifts[1], moveList, type: MoveType.Promotion);
+                // Add moves to move list - doing single pushes
+                // (Add to checkmask first so that double pushes
+                // can be used to block checks)
+                GenerateMovesWithOffset(checkmask & singlePushes & ~promotionRank, pawnShifts[1], moveList);
+                GenerateMovesWithOffset(checkmask & singlePushes &  promotionRank, pawnShifts[1], moveList, type: MoveType.Promotion);
 
-            // Add moves to move list - doing double pushes (at start)
-            GenerateMovesWithOffset(checkmask & doublePushes, pawnShifts[3], moveList, type: MoveType.PawnDoublePush);
+                // Add moves to move list - doing double pushes (at start)
+                GenerateMovesWithOffset(checkmask & doublePushes, pawnShifts[3], moveList, type: MoveType.PawnDoublePush);
+            }
 
             // Pawns pinned orthogonally can't capture pieces and pawns pinned
             // diagonally must only be able to take pieces on the pinmask.
@@ -441,9 +475,6 @@ namespace Chess.MoveGen
             List<Move> moveListToAddTo
         )
         {
-            int KSC = 0b1000 >> 2 * (int)sideToMove;
-            int QSC = 0b0100 >> 2 * (int)sideToMove;
-
             if (castlingRights.CanKingside(sideToMove)
                 && CastlingMoves.CanCastleKingside(sideToMove, friendlyPieces, opponentPieces))
             {

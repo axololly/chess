@@ -39,15 +39,12 @@ namespace Chess.Bitmasks
             return mb.SLIDING_PIECE_MOVE_TABLE[index];
         }
 
-        public static Bitboard ForQueen(Bitboard occupancy, int square)
-            => ForBishop(occupancy, square) | ForRook(occupancy, square);
-
         public static Bitboard ForKnight(Bitboard friendlyOccupancy, int square)
             => ~friendlyOccupancy & mt.KNIGHT_MOVES_TABLE[square];
 
-        public static Bitboard ForKing(Bitboard enemyOrEmpty, Bitboard opponentAttacks, int square)
+        public static Bitboard ForKing(Bitboard opponentAttacks, int square)
         {
-            return mt.KING_MOVES_TABLE[square] & enemyOrEmpty & ~opponentAttacks;
+            return mt.KING_MOVES_TABLE[square] & ~opponentAttacks;
         }
 
         public static Bitboard RayBetween(int square1, int square2, bool inclusive = false)
