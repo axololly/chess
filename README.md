@@ -1,4 +1,4 @@
-# Chess Move Generator v1.2.0
+# Chess Move Generator v1.2.1
 
 Holy hell, it's been a while. It's been probably another month and I _still_ don't have documentation for everything. That's what procrastination does to you. :trollface:
 
@@ -15,7 +15,7 @@ Here are the current file statistics for this project:
 |`Castling.cs`|212|7,962|7.98 KB|
 |`Generator.cs`|549|19,141|19.23 KB|
 |`MagicBitboards.cs`|318|17,175|17.08 KB|
-|`PGN.cs`|281|12,182|12.17 KB|
+|`PGN.cs`|423|17,605|17.6 KB|
 |`Perft.cs`|364|11,865|11.94 KB|
 |`Square.cs`|59|2,248|2.25 KB|
 |`Tables.cs`|59|1,857|1.87 KB|
@@ -28,6 +28,31 @@ I'm incredibly proud of how much I've written, how much I've learnt and how far 
 ## PGN Support
 
 I added PGN support now, which you can find in `PGN.cs`, and use under the namespace `Chess.PGN`. Now you can read games in PGN format. Do note that some PGNs are raising draw errors, mostly under the three-fold repetition rule. I became aware of this issue after running my code through a set of 7,000 PGNs I found [here](https://www.pgnmentor.com/files.html). For my experiments, I took games from [Viswanatan Anand](https://en.wikipedia.org/wiki/Viswanathan_Anand) and [Alireza Firouzja](https://en.wikipedia.org/wiki/Alireza_Firouzja), then ran them through a custom-made interpreter.
+
+### Inputs and Outputs
+
+Both inputting PGNs to a returned `Board` struct and outputting a PGN from a given `Board` struct are supported.
+
+To input a PGN:
+```cs
+using Chess;
+using Chess.PGN;
+
+string examplePGN;
+
+Board outputtedBoard = PGN.InterpretPGN(examplePGN);
+```
+
+And to output a PGN:
+```cs
+using Chess;
+using Chess.PGN;
+
+Board board;
+string outputPGN = PGN.ConvertToPGN(board);
+```
+
+It's as easy as that.
 
 ### Results
 
@@ -99,7 +124,7 @@ For extra information, here's a table of all the functions you'd be using, and w
 |`.MakeMove()`|Makes a move on the board.<br>_Note that the legality of the move is not verified._<br><br>To get the `Move` struct, use the `Chess.MoveGen` namespace.|
 |`.UndoMove()`|Undoes a move on the board.<br><br>This will raise an error if no moves were previously played on the board.|
 |`.GenerateLegalMoves()`|Returns a list of `Move` structs representing all the legal moves that can be played on the board.<br><br>If the list is empty, the board state is either checkmate or stalemate, both of which can be found out with the `.InCheck` property, where if true, the state is checkmate, and if false, it's stalemate.|
-|`.IsDraw`|Returns a boolean representing whether or not the current board state is a draw.<br><br_Note that this generalises between the 50-move rule, three-fold repetition and insufficient material._|
+|`.IsDraw`|Returns a boolean representing whether or not the current board state is a draw.<br><br>_Note that this generalises between the 50-move rule, three-fold repetition and insufficient material._|
 |`.InCheck`|Returns a boolean representing whether or not the current player's king is in check or not.|
 
 ### Example

@@ -277,5 +277,147 @@ namespace Chess.PGN
 
             return board;
         }
+
+        public static string ConvertToPGN(Board board)
+        {
+            string result;
+
+            List<Move> moves = board.GenerateLegalMoves();
+
+            // Win for white: 1-0
+            // Win for black: 0-1
+            // Draw for both: 1/2-1/2
+            // Game not done: *
+            if (board.IsDraw || (moves.Count == 0 && !board.InCheck))
+            {
+                result = "1/2-1/2";
+            }
+            else
+            {
+                if (moves.Count == 0 && board.InCheck)
+                {
+                    // Since the checkmate move passes the play onto the other
+                    // person, we need to invert the side-to-move to get the
+                    // side that played the checkmate.
+                    result = (board.SideToMove ^ 1) == 0 ? "1-0" : "0-1";
+                }
+                else
+                {
+                    result = "*";
+                }
+            }
+
+            string PGN = "";
+            
+            Board backtrackBoard = new();
+            List<Move> movesToRetrace = board.moveHistory.Reverse().ToList();
+
+            for (int i = 0; i < movesToRetrace.Count; i++)
+            {
+                // If this is white's turn to move, add a number
+                if (backtrackBoard.SideToMove == 0)
+                {
+                    PGN += $"{i / 2 + 1}.";
+                }
+
+                string moveString = "";
+                Move move = movesToRetrace[i];
+                Piece pieceToMove = backtrackBoard.Mailbox[move.src];
+
+                // Console.WriteLine($"Studying move {move}...\nPiece: {pieceToMove} (=> {pieceToMove - backtrackBoard.SideToMove})\nBoard\n{backtrackBoard}\n");
+
+                if (move.type == MoveType.Castling)
+                {
+                    PGN += (move.src < move.dst ? "O-O" : "O-O-O") + ' ';
+
+                    backtrackBoard.MakeMove(move);
+
+                    continue;
+                }
+                
+                moveString += (pieceToMove - backtrackBoard.SideToMove) switch
+                {
+                    Piece.WhiteBishop => 'B',
+                    Piece.WhiteKnight => 'N',
+                    Piece.WhiteRook   => 'R',
+                    Piece.WhiteQueen  => 'Q',
+                    Piece.WhiteKing   => 'K',
+
+                    // If the move is a capture, we obviously need to include the file
+                    // (eg. "exf5"), but if it's not a capture (eg. "f5"), we don't
+                    // need the file.
+                    Piece.WhitePawn   => backtrackBoard.Mailbox[move.dst] == Piece.Empty
+                                           ? ""
+                                           : $"{(char)('a' + move.src.File)}",
+                    
+                    _ => throw new Exception($"cannot account for piece '{pieceToMove}' (=> {pieceToMove - backtrackBoard.SideToMove}) in move translation switch statement.")
+                };
+
+                List<Move> moveLookup = backtrackBoard
+                    .GenerateLegalMoves()
+                    .Where(
+                        m => backtrackBoard.Mailbox[m.src] == pieceToMove
+                          && m.dst == move.dst
+                    )
+                    .ToList();
+                
+                // Needs differentiation
+                if (moveLookup.Count > 1)
+                {
+                    // Check for file differentiation by seeing if we need just a file
+                    // to differentiate the move in the lookup.
+                    if (moveLookup.Where(m => m.src.File == move.src.File).ToList().Count == 1)
+                    {
+                        moveString += (char)('a' + move.src.File);
+                    }
+
+                    // Check for rank differentiation by seeing if we need just a rank
+                    // to differentiate the move in the lookup.
+                    else if (moveLookup.Where(m => m.src.Rank == move.src.Rank).ToList().Count == 1)
+                    {
+                        moveString += (char)('1' + move.src.Rank);
+                    }
+
+                    // Since both rank and file differentiation alone didn't work, we need to use
+                    // an exact square differentiation.
+                    else
+                    {
+                        moveString += $"{move.src}";
+                    }
+                }
+
+                // If the move was a capture, add an 'x'
+                if (backtrackBoard.Mailbox[move.dst] != Piece.Empty)
+                {
+                    moveString += "x";
+                }
+
+                moveString += $"{move.dst}";
+                
+                // Update the board
+                backtrackBoard.MakeMove(move);
+
+                if (backtrackBoard.InCheck)
+                {
+                    // If we're at the final move and the result
+                    // isn't a draw, or undefined, add a '#' for
+                    // checkmate. All other times, add a '+' for
+                    // check.
+                    bool endsInCheckmate = result == "1-0" || result == "0-1";
+                    bool isFinalMove = i + 1 == movesToRetrace.Count;
+
+                    moveString += endsInCheckmate && isFinalMove ? '#' : '+';
+                }
+
+                PGN += moveString + ' ';
+            }
+
+            if (result != "*")
+            {
+                PGN += result;
+            }
+
+            return PGN;
+        }
     }
 }
