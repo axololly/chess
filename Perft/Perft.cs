@@ -1,9 +1,7 @@
 using System.Diagnostics;
-using Chess.MoveGen;
 using Chess960;
 using Newtonsoft.Json;
 using System.Text;
-using Chess.Utilities;
 
 namespace Chess.Perft
 {
@@ -26,9 +24,10 @@ namespace Chess.Perft
         public string? ErrorMessage { get; set; }
     }
 
-    public static class Perft
+    public struct Perft
     {
         public static string Kiwipete { get { return "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"; } }
+        public static string Startpos { get { return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; } }
 
         public static ulong BasePerftTest(Board board, int depth, bool bulk = true)
         {

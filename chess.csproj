@@ -7,11 +7,11 @@
 
   <PropertyGroup>
     <PackageID>Axololly.Chess.MoveGenerator</PackageID>
-    <Version>1.2.2</Version>
+    <Version>1.2.3</Version>
     <Authors>Axololly</Authors>
     <PackageTags>Chess;Move Generation;Bitboards</PackageTags>
     <Description>
-      This library features two classes, one for classical chess and another for Chess960, that enable you to play Chess and generate moves in a simple manner.
+      This library features two structs, one for classical chess and another for Chess960, that enable you to play and generate moves for, both Chess and Chess960, in a simple manner.
       
       This new version includes a few patches with overall board use, like bug fixes and adding zobrist hashing to both board classes, as well as correcting the way it handles en-passant and fixing an error with updating the code.
       

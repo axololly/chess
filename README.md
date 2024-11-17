@@ -1,6 +1,6 @@
-# Chess Move Generator v1.2.1
+# Chess Move Generator v1.2.3
 
-Holy hell, it's been a while. It's been probably another month and I _still_ don't have documentation for everything. That's what procrastination does to you. :trollface:
+Documentation is slowly progressing. You can check it out [here](https://axololly.github.io/chess-documentation), and make sure to leave positive feedback. :heart:
 
 ## Statistics
 
@@ -15,7 +15,7 @@ Here are the current file statistics for this project:
 |`Castling.cs`|212|7,962|7.98 KB|
 |`Generator.cs`|549|19,141|19.23 KB|
 |`MagicBitboards.cs`|318|17,175|17.08 KB|
-|`PGN.cs`|423|17,605|17.6 KB|
+|`PGN.cs`|238|8164|8.2 KB|
 |`Perft.cs`|364|11,865|11.94 KB|
 |`Square.cs`|59|2,248|2.25 KB|
 |`Tables.cs`|59|1,857|1.87 KB|
@@ -31,7 +31,7 @@ I added PGN support now, which you can find in `PGN.cs`, and use under the names
 
 ### Inputs and Outputs
 
-Both inputting PGNs to a returned `Board` struct and outputting a PGN from a given `Board` struct are supported.
+Both inputting PGNs to a returned `Board` struct and outputting a PGN from a given `Board` struct are supported. Of course, outputting a PGN from a board can now be performed under the `.PGN` property.
 
 To input a PGN:
 ```cs
@@ -49,6 +49,11 @@ using Chess;
 using Chess.PGN;
 
 Board board;
+
+// Option 1 (cleaner)
+string outputPGN = board.PGN;
+
+// Option 2 (raw)
 string outputPGN = PGN.ConvertToPGN(board);
 ```
 
@@ -84,13 +89,15 @@ Fails are for the same reasons.
 
 ### Inner Workings
 
-It works using regex to identify the start and end of a PGN's body - it starts with `1.` and ends with either `0-1`, `1-0`, or `1/2-1/2`. We can easily compile these into regex with:
+It works using regex to identify the start and end of a PGN's body - it starts with `1.` and ends with either `0-1`, `1-0`, or `1/2-1/2`. Note that this may also be present in a `[Result "..."]` tag, so we need to make sure that there isn't a leading quotation mark.
+
+These can easily be compiled into regex with:
 ```cs
 // For start
 @"1\.";
 
 // For end
-@"  ((0-1)|(1-0)|(1/2-1/2))";
+@"[^""]((0-1)|(1-0)|(1/2-1/2))";
 ```
 
 However, note that this does blindly extract moves, so if you gave it:

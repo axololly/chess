@@ -1,10 +1,13 @@
-using Chess.Utilities;
-using Chess.MoveGen;
 using Chess.Bitmasks;
 using Chess.Castling;
+using Chess.Moves;
+using _PGN = Chess.PGN.PGN;
 using Chess.Types.Bitboards;
 using Chess.Types.Squares;
 using Chess.Types.Zobrist;
+using Chess.Utilities;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 
 namespace Chess
 {
@@ -94,6 +97,131 @@ namespace Chess
         Empty
     }
 
+
+    public enum MoveType
+    {
+        Normal,
+        PawnDoublePush,
+        Castling,
+        Castling960,
+        EnPassant,
+        Promotion
+    }
+
+    public enum PromoPiece
+    {
+        None,
+        Knight,
+        Bishop,
+        Rook,
+        Queen
+    }
+
+    public struct Move(
+        int src,
+        int dst,
+        MoveType type = MoveType.Normal,
+        PromoPiece promoPiece = PromoPiece.None
+    )
+    {
+        public Square src = src; // Where the move starts
+        public Square dst = dst; // Where the move ends
+        public MoveType type = type; // Type of move
+        public PromoPiece promoPiece = promoPiece;
+
+        public static Move FromString(string moveString, MoveType type = MoveType.Normal, PromoPiece promoPiece = PromoPiece.None)
+        {
+            if (
+                (type != MoveType.Promotion && promoPiece != PromoPiece.None)
+             || (type == MoveType.Promotion && promoPiece == PromoPiece.None)
+            )
+            {
+                throw new Exception("promoted piece and promotion flag must be set together.");
+            }
+
+            Regex regex = new("^[a-h][1-8][a-h][1-8][qbrn]?$");
+            string match = regex.Match(moveString).Value;
+
+            static int convert(string value) => (value[1] - '1') * 8 + value[0] - 'a';
+
+            if (match.Length == 5) // promotion move present
+            {
+                return new Move()
+                {
+                    src = convert(match[..2]),
+                    dst = convert(match.Substring(2, 2)),
+                    type = MoveType.Promotion,
+                    promoPiece = match[4] switch
+                    {
+                        'r' => PromoPiece.Rook,
+                        'b' => PromoPiece.Bishop,
+                        'n' => PromoPiece.Knight,
+                        'q' => PromoPiece.Queen,
+                        
+                        _ => throw new Exception("error when deconstructing promotion piece type.")
+                    }
+                };
+            }
+
+            Move move = new()
+            {
+                src = convert(match[..2]),
+                dst = convert(match.Substring(2, 2)),
+                promoPiece = promoPiece,
+                type = type
+            };
+
+            return move;
+        }
+        
+
+        public override string ToString()
+        {
+            string convert(int index)
+            {
+                if (index < 0 || index > 63)
+                {
+                    throw new Exception($"square index '{index}' cannot be translated to a square value.");
+                }
+
+                return "abcdefgh"[index % 8].ToString() + "12345678"[index / 8].ToString();
+            }
+
+            string promoPieceString = promoPiece switch
+            {
+                PromoPiece.Bishop => "b",
+                PromoPiece.Knight => "n",
+                PromoPiece.Rook   => "r",
+                PromoPiece.Queen  => "q",
+                PromoPiece.None   => "",
+                _ => throw new Exception("promotion piece enum unaccounted for.")
+            };
+
+            return convert(src) + convert(dst) + promoPieceString;
+        }
+
+        public override bool Equals([NotNullWhen(true)] object? other)
+        {
+            if (other is not Move) return false;
+
+            Move otherMove = (Move)other;
+            
+            return src == otherMove.src
+                && dst == otherMove.dst
+                && type == otherMove.type
+                && promoPiece == otherMove.promoPiece;
+        }
+
+        public override int GetHashCode()
+        {
+            Tuple<int, int> moveTuple = new(src, dst);
+            return moveTuple.GetHashCode();
+        }
+        
+        public static bool operator ==(Move left, Move right) =>  left.Equals(right);
+        public static bool operator !=(Move left, Move right) => !left.Equals(right);
+    }
+
     public struct BoardInfo
     {
         public Square EPsquare;
@@ -125,7 +253,11 @@ namespace Chess
         public Bitboard checkers;
 
         public Bitboard boardMask { get { return White.Mask | Black.Mask; } }
+
         public string FEN { get { return GetFEN(); } }
+        public string PGN { get { return _PGN.ConvertToPGN(this); } }
+        public string OriginalFEN { get { return _original_FEN; } }
+        private string _original_FEN;
         
         public int SideToMove { get { return moveCounter & 1; } }
         public Colour ColourToMove { get { return (Colour)SideToMove; } }
@@ -357,7 +489,8 @@ namespace Chess
             PastZobristHashes = [];
 
             // Create a board from the standard FEN.
-            FromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            FromFEN(Perft.Perft.Startpos);
+            _original_FEN = Perft.Perft.Startpos;
         }
 
         public Board(string FEN)
@@ -369,6 +502,7 @@ namespace Chess
 
             // Create a board from the given FEN.
             FromFEN(FEN);
+            _original_FEN = FEN;
         }
 
         public Bitboard GetBitboardFromEnum(Piece pieceEnum)
@@ -910,7 +1044,7 @@ namespace Chess
             // If there are two checkers, only generate king moves
             if (checkers.BitCount() == 2)
             {
-                Moves.GenerateKingMoves(
+                Generator.GenerateKingMoves(
                     friendlyPieces: PlayerToMove,
                     opponentPieces: OpponentToMove,
                     square: PlayerToMove.KingSquare,
@@ -925,7 +1059,7 @@ namespace Chess
 
             while (rooksQueens)
             {
-                Moves.GenerateRookMoves(
+                Generator.GenerateRookMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
                     opponentOccupancy: OpponentToMove.Mask,
                     square: rooksQueens.PopLSB(),
@@ -941,7 +1075,7 @@ namespace Chess
 
             while (bishopsQueens)
             {
-                Moves.GenerateBishopMoves(
+                Generator.GenerateBishopMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
                     opponentOccupancy: OpponentToMove.Mask,
                     square: bishopsQueens.PopLSB(),
@@ -957,7 +1091,7 @@ namespace Chess
 
             while (knights)
             {
-                Moves.GenerateKnightMoves(
+                Generator.GenerateKnightMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
                     opponentOccupancy: OpponentToMove.Mask,
                     square: knights.PopLSB(),
@@ -968,7 +1102,7 @@ namespace Chess
                 );
             }
 
-            Moves.GeneratePawnMoves(
+            Generator.GeneratePawnMoves(
                 whitePieces: White,
                 blackPieces: Black,
                 epSquare: epSquare,
@@ -980,7 +1114,7 @@ namespace Chess
                 onlyCaptures: onlyCaptures
             );
 
-            Moves.GenerateKingMoves(
+            Generator.GenerateKingMoves(
                 friendlyPieces: PlayerToMove,
                 opponentPieces: OpponentToMove,
                 square: PlayerToMove.KingSquare,
@@ -990,7 +1124,7 @@ namespace Chess
 
             if (!InCheck && !onlyCaptures)
             {
-                Moves.GenerateCastlingMoves(
+                Generator.GenerateCastlingMoves(
                     sideToMove: ColourToMove,
                     friendlyPieces: PlayerToMove,
                     opponentPieces: OpponentToMove,

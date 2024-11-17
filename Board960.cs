@@ -1,6 +1,6 @@
 using Chess;
 using Chess.Utilities;
-using Chess.MoveGen;
+using Chess.Moves;
 using Chess.Bitmasks;
 using Chess.Castling;
 using Chess.Types.Bitboards;
@@ -802,7 +802,7 @@ namespace Chess960
             // If there are two checkers, only generate king moves
             if (checkers.BitCount() == 2)
             {
-                Moves.GenerateKingMoves(
+                Generator.GenerateKingMoves(
                     friendlyPieces: PlayerToMove,
                     opponentPieces: OpponentToMove,
                     square: PlayerToMove.KingSquare,
@@ -817,7 +817,7 @@ namespace Chess960
 
             while (rooksQueens)
             {
-                Moves.GenerateRookMoves(
+                Generator.GenerateRookMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
                     opponentOccupancy: OpponentToMove.Mask,
                     square: rooksQueens.PopLSB(),
@@ -833,7 +833,7 @@ namespace Chess960
 
             while (bishopsQueens)
             {
-                Moves.GenerateBishopMoves(
+                Generator.GenerateBishopMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
                     opponentOccupancy: OpponentToMove.Mask,
                     square: bishopsQueens.PopLSB(),
@@ -849,7 +849,7 @@ namespace Chess960
 
             while (knights)
             {
-                Moves.GenerateKnightMoves(
+                Generator.GenerateKnightMoves(
                     friendlyOccupancy: PlayerToMove.Mask,
                     opponentOccupancy: OpponentToMove.Mask,
                     square: knights.PopLSB(),
@@ -860,7 +860,7 @@ namespace Chess960
                 );
             }
 
-            Moves.GeneratePawnMoves(
+            Generator.GeneratePawnMoves(
                 whitePieces: White,
                 blackPieces: Black,
                 epSquare: epSquare,
@@ -872,7 +872,7 @@ namespace Chess960
                 onlyCaptures: onlyCaptures
             );
 
-            Moves.GenerateKingMoves(
+            Generator.GenerateKingMoves(
                 friendlyPieces: PlayerToMove,
                 opponentPieces: OpponentToMove,
                 square: PlayerToMove.KingSquare,
@@ -882,7 +882,7 @@ namespace Chess960
 
             if (!InCheck && !onlyCaptures) // not in check
             {
-                Moves.GenerateCastlingMoves(
+                Generator.GenerateCastlingMoves(
                     sideToMove: ColourToMove,
                     friendlyPieces: PlayerToMove,
                     opponentPieces: OpponentToMove,
